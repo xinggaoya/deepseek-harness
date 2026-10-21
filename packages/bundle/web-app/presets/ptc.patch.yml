@@ -8,10 +8,9 @@
         id: ptc
         order: 2
         plugins:
-          - id: persona
-            name: '@deepseek-ai/dsh-persona'
-            config:
-              prefix: You are a coding agent powered by the {{model}} model.
+          # No persona row: the deployment persona (the `system-prompt` plugin's
+          # `personaPrefix`) is this preset's identity, so a deployment can edit
+          # it in one place.
           - id: agent-instructions
             name: '@deepseek-ai/dsh-agent-instructions'
             config:

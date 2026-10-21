@@ -116,7 +116,7 @@ export const SERVICE_PAGE: Record<string, string> = {
   workingDirectory: 'working-directory.md',
   worktrees: 'worktrees.md',
   sessionController: 'session.md',
-  sessionSkillCatalog: 'skills.md',
+  skillCatalog: 'skills.md',
   sessions: 'session.md',
   settings: 'settings.md',
   sessionTitle: 'session-title.md',

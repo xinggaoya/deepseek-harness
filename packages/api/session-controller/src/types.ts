@@ -240,9 +240,24 @@ declare module '@deepseek-ai/dsh-typert-protocol' {
 }
 
 /** Session-addressed request for the human-invocable skill catalog. */
-export interface SkillListRequest {
+export interface SkillSessionListRequest {
   readonly sessionId: SessionId
 }
+
+/** Preset-addressed request for the whole skill catalog of one project. */
+export interface SkillPresetListRequest {
+  /** Preset whose standing scope selects the catalog view; defaults to the deployment's default preset. */
+  readonly presetId?: string
+  /** Project directory whose project skills join the catalog; defaults to the Host's default working directory. */
+  readonly cwd?: string
+}
+
+/**
+ * Request for the skill catalog, addressed either by the Session whose
+ * composition selects the view or by the preset scope and project directory
+ * that a configuration surface reads.
+ */
+export type SkillListRequest = SkillSessionListRequest | SkillPresetListRequest
 
 /** One skill available to the Session's human-facing composer. */
 export interface SkillEntry {
@@ -256,9 +271,13 @@ export interface SkillEntry {
   readonly whenToUse?: string
   /** Whether the same skill is also advertised to the model. */
   readonly modelInvocable: boolean
+  /** Whether a human-facing command may invoke the skill. */
+  readonly userInvocable: boolean
+  /** Discovery source that produced the winning skill, such as a project or user root. */
+  readonly source: string
 }
 
-/** Human-invocable skills visible through one Session's composition. */
+/** Skills visible through one Session's composition or one preset's project scope. */
 export interface SkillListValue {
   readonly skills: readonly SkillEntry[]
 }

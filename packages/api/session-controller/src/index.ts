@@ -29,7 +29,7 @@ import { SessionFileReferences } from './file-references.ts'
 import { ApiSessionList } from './list.ts'
 import { buildModelCatalog, hasProviderApiKey } from './catalog.ts'
 import { installModelSelectionProjection } from './model-selection-projection.ts'
-import { SessionSkillCatalog } from './skill-catalog.ts'
+import { SkillCatalog } from './skill-catalog.ts'
 import { SessionMediaReferences } from './media-references.ts'
 import { ArchivedSessionGate } from './archived-session-gate.ts'
 import type {
@@ -71,7 +71,7 @@ import type {
 export type * from './types.ts'
 export { ApiSessionNotFound } from './agent.ts'
 export { SessionFileReferences } from './file-references.ts'
-export { SessionSkillCatalog } from './skill-catalog.ts'
+export { SkillCatalog } from './skill-catalog.ts'
 
 declare module '@deepseek-ai/cordis' {
   interface Context {
@@ -182,7 +182,7 @@ export class SessionController extends TypertRemoteService {
       ?? (() => config.nativeOpen ?? (internals.openPath !== undefined || canOpenNativePath()))
     ctx.plugin(SessionFileReferences)
     ctx.plugin(SessionMediaReferences)
-    ctx.plugin(SessionSkillCatalog)
+    ctx.plugin(SkillCatalog)
     // An archived Session, or a subagent descendant of one, runs no model step
     // until it is restored; what it still runs is stopped by the owners that
     // answer the Workspace registry's archive-admission events.

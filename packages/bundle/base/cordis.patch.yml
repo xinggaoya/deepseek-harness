@@ -506,6 +506,13 @@
       config:
         personaPrefix: ''
 
+    # The MCP servers this deployment connects to. The namespace starts empty; a
+    # deployment states its servers here or edits them in the Web settings.
+    - id: mcp-servers
+      name: '@deepseek-ai/dsh-mcp-servers'
+      config:
+        servers: {}
+
     # Agents created at startup. The base stays empty; raw overlays may create
     # agents, while Web creates sessions on client request.
     - id: agent-loop

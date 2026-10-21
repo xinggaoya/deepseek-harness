@@ -1,9 +1,23 @@
 import { describe, expect, it } from 'vitest'
 import { Context } from '@deepseek-ai/cordis'
+// Type-only: the loader's volatile-configuration event declaration.
+import type {} from '@deepseek-ai/cordis-plugin-loader'
 import SystemPrompt, {
   AssembleContext, PromptAssembly, renderContextSections, renderContextSnapshot, renderPrompt,
 } from '@deepseek-ai/dsh-system-prompt'
 import type { PromptContextOrderName, PromptSectionOrderName } from '@deepseek-ai/dsh-system-prompt'
+
+/**
+ * A live configuration reference the test can change, standing in for the
+ * Loader's volatile commit of a new value into a running fiber.
+ *
+ * The reference carries a primitive, so its snapshot type is the value type
+ * itself; the fake returns the value directly and needs no deep-freezing.
+ */
+function live<T>(initial: T): { reference: { get: () => T }; set: (value: T) => void } {
+  let current = initial
+  return { reference: { get: () => current }, set: (value) => { current = value } }
+}
 
 /**
  * Every assembly carries the plugin's own built-ins — `harness:identity`
@@ -276,6 +290,82 @@ describe('SystemPrompt', () => {
       const ctx = new Context()
       const service = new SystemPrompt(ctx, {})
       expect(renderPrompt(await service.assemble())).toBe(IDENTITY)
+    })
+
+    it('registers the persona again when its volatile value changes', async () => {
+      const ctx = new Context()
+      try {
+        const prefix = live('First persona.')
+        new SystemPrompt(ctx, {
+          includeHarnessIdentity: { get: () => true },
+          personaPrefix: prefix.reference,
+          personaSuffix: { get: () => '' },
+          personaComplete: { get: () => false },
+        })
+        expect(renderPrompt(await ctx.systemPrompt.assemble())).toContain('First persona.')
+
+        prefix.set('Second persona.')
+        ctx.emit('loader/volatile-update', [['personaPrefix']])
+
+        const assembly = await ctx.systemPrompt.assemble()
+        expect(assembly.sections.map(section => section.name)).toEqual([
+          'harness:identity',
+          'deployment:persona-prefix',
+          'deployment:persona-suffix',
+        ])
+        expect(renderPrompt(assembly)).toContain('Second persona.')
+      } finally {
+        await ctx.fiber.dispose()
+      }
+    })
+
+    it('drops the identity line when the volatile configuration turns it off', async () => {
+      const ctx = new Context()
+      try {
+        const identity = live(true)
+        new SystemPrompt(ctx, {
+          includeHarnessIdentity: identity.reference,
+          personaPrefix: { get: () => 'You are a coding agent.' },
+          personaSuffix: { get: () => '' },
+          personaComplete: { get: () => false },
+        })
+        expect(renderPrompt(await ctx.systemPrompt.assemble())).toContain(IDENTITY)
+
+        identity.set(false)
+        ctx.emit('loader/volatile-update', [['includeHarnessIdentity']])
+
+        const assembly = await ctx.systemPrompt.assemble()
+        expect(assembly.sections.map(section => section.name)).toEqual([
+          'deployment:persona-prefix',
+          'deployment:persona-suffix',
+        ])
+        expect(renderPrompt(assembly)).not.toContain(IDENTITY)
+      } finally {
+        await ctx.fiber.dispose()
+      }
+    })
+
+    it('makes the persona the complete prompt when the volatile configuration asks for it', async () => {
+      const ctx = new Context()
+      try {
+        const complete = live(false)
+        new SystemPrompt(ctx, {
+          includeHarnessIdentity: { get: () => true },
+          personaPrefix: { get: () => 'You are a coding agent.' },
+          personaSuffix: { get: () => 'Trailing guidance.' },
+          personaComplete: complete.reference,
+        })
+        expect(renderPrompt(await ctx.systemPrompt.assemble())).toContain(IDENTITY)
+
+        complete.set(true)
+        ctx.emit('loader/volatile-update', [['personaComplete']])
+
+        const assembly = await ctx.systemPrompt.assemble()
+        expect(assembly.sections.map(section => section.name)).toEqual(['deployment:persona-prefix'])
+        expect(renderPrompt(assembly)).toBe('You are a coding agent.')
+      } finally {
+        await ctx.fiber.dispose()
+      }
     })
   })
 

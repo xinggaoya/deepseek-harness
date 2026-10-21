@@ -5,10 +5,15 @@
  */
 
 import { Context, Service } from '@deepseek-ai/cordis'
+import type { Volatile } from '@deepseek-ai/cordis'
 import z from '@deepseek-ai/schemastery'
 import { AnonymousEntries, NamedEntries, ScopedLayers, scopeTarget } from '@deepseek-ai/dsh-scope'
 import type { ScopeKey, ScopeLayer, Scoped } from '@deepseek-ai/dsh-scope'
 import type { ContextSnapshotSection, ToolSchema } from '@deepseek-ai/dsh-llm'
+// Type-only: the settings service the deployment persona is configured through.
+import type {} from '@deepseek-ai/dsh-settings'
+// Type-only: the loader's volatile-configuration event declaration.
+import type {} from '@deepseek-ai/cordis-plugin-loader'
 
 declare module '@deepseek-ai/cordis' {
   interface Context {
@@ -271,10 +276,36 @@ export interface Config {
    */
   personaSuffix?: string
   /**
+   * Make the persona prefix the complete system prompt: the identity line, the suffix, the tool
+   * guidance, and every other section drop away. A scoped persona of the same name shadows this
+   * section whole, complete flag included.
+   */
+  personaComplete?: boolean
+  /**
    * Model-facing tool names in order, with {@link TOOL_ORDER_REST} exactly once.
    * Invalid fields fail at load and unknown names fail at assembly; known names
    * hidden in one scope may be absent there. Omitted means lexicographic order.
    */
+  toolOrder?: string[]
+}
+
+/**
+ * The resolved configuration the registry reads. The persona values are
+ * volatile: a deployment may change them while the Host runs, and the registry
+ * reads the live reference at every assembly.
+ */
+export interface ResolvedConfig {
+  /** Include the fixed DeepSeek Harness identity before the deployment persona. */
+  includeHarnessIdentity?: Volatile<boolean>
+  /** Include optional runtime-context snapshots in model history. */
+  includeRuntimeContext?: boolean
+  /** Deployment-wide persona prefix template. */
+  personaPrefix?: Volatile<string>
+  /** Persona suffix template. */
+  personaSuffix?: Volatile<string>
+  /** Whether the persona prefix is the complete system prompt. */
+  personaComplete?: Volatile<boolean>
+  /** Model-facing tool names in order. */
   toolOrder?: string[]
 }
 
@@ -427,11 +458,12 @@ class PromptLayer implements ScopeLayer {
 
 /** Registry service for the prompt inputs assembled before each model step. */
 export class SystemPrompt extends Service {
-  static Config: z<Config> = z.object({
-    includeHarnessIdentity: z.boolean().default(true),
+  static Config = z.object({
+    includeHarnessIdentity: z.boolean().default(true).volatile(),
     includeRuntimeContext: z.boolean().default(true),
-    personaPrefix: z.string().default(''),
-    personaSuffix: z.string().default(''),
+    personaPrefix: z.string().default('').volatile(),
+    personaSuffix: z.string().default('').volatile(),
+    personaComplete: z.boolean().default(false).volatile(),
     // Preserve omission because an explicit empty order lacks the rest marker.
     toolOrder: z.array(z.string()).default(undefined as unknown as string[]),
   })
@@ -441,30 +473,54 @@ export class SystemPrompt extends Service {
     () => { this.ctx.emit('system-prompt/change') },
   )
   private readonly toolOrder: string[] | undefined
+  private readonly config: ResolvedConfig
+  /** Disposers of the deployment's own sections, replaced when a volatile value changes. */
+  private sectionDisposers: (() => void)[] = []
 
-  constructor(ctx: Context, config: Config) {
+  constructor(ctx: Context, config: ResolvedConfig) {
     super(ctx, 'systemPrompt')
     this.toolOrder = validateToolOrder(config.toolOrder)
+    this.config = config
     // Keep harness-owned openers independent of the selected loop plugin.
-    if (config.includeHarnessIdentity ?? true) {
-      this.section({
+    this.registerSections()
+    // A volatile configuration value reaches the running fiber without a
+    // remount, so the sections it owns are registered again from the new
+    // values instead of keeping the text captured at construction.
+    ctx.on('loader/volatile-update', () => { this.refreshSections() })
+    ctx.inject(['settings'], (child) => {
+      child.effect(() => child.settings.configure({ auto: false }, ctx.fiber))
+    })
+    if (!(config.includeRuntimeContext ?? true)) this.suppressRuntimeContext()
+  }
+
+  /** Register the deployment's own prompt sections from the current configuration. */
+  private registerSections(): void {
+    if (this.config.includeHarnessIdentity?.get() ?? true) {
+      this.sectionDisposers.push(this.section({
         name: 'harness:identity',
         order: this.getSectionOrder('HARNESS_IDENTITY'),
         text: 'You are an AI agent powered by DeepSeek Harness.',
-      })
+      }))
     }
-    this.section({
+    const complete = this.config.personaComplete?.get() ?? false
+    this.sectionDisposers.push(this.section({
       name: PERSONA_PREFIX_SECTION,
       order: this.getSectionOrder('DEPLOYMENT_PERSONA_PREFIX'),
-      // The fallback narrows the optional input type; the schema already defaults it.
-      text: config.personaPrefix ?? '',
-    })
-    this.section({
+      text: this.config.personaPrefix?.get() ?? '',
+      ...(complete ? { complete: true } : {}),
+    }))
+    this.sectionDisposers.push(this.section({
       name: PERSONA_SUFFIX_SECTION,
       order: this.getSectionOrder('DEPLOYMENT_PERSONA_SUFFIX'),
-      text: config.personaSuffix ?? '',
-    })
-    if (!(config.includeRuntimeContext ?? true)) this.suppressRuntimeContext()
+      text: this.config.personaSuffix?.get() ?? '',
+    }))
+  }
+
+  /** Replace the deployment's own sections with the current configuration values. */
+  private refreshSections(): void {
+    for (const dispose of this.sectionDisposers) dispose()
+    this.sectionDisposers = []
+    this.registerSections()
   }
 
   /**

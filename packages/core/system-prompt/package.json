@@ -31,7 +31,13 @@
   "peerDependencies": {
     "@deepseek-ai/dsh-llm": "workspace:*",
     "@deepseek-ai/dsh-scope": "workspace:*",
+    "@deepseek-ai/cordis-plugin-loader": "workspace:~",
     "@deepseek-ai/cordis": "workspace:~"
+  },
+  "peerDependenciesMeta": {
+    "@deepseek-ai/cordis-plugin-loader": {
+      "optional": true
+    }
   },
   "dependencies": {
     "@deepseek-ai/schemastery": "workspace:~"
@@ -39,6 +45,8 @@
   "devDependencies": {
     "@deepseek-ai/dsh-llm": "workspace:*",
     "@deepseek-ai/dsh-scope": "workspace:*",
+    "@deepseek-ai/dsh-settings": "workspace:*",
+    "@deepseek-ai/cordis-plugin-loader": "workspace:~",
     "@deepseek-ai/cordis": "workspace:~"
   }
 }

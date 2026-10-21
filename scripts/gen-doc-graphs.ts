@@ -301,11 +301,11 @@ const SERVICE_ROLES: ServiceRole[] = [
     note: 'Delegates file-reference discovery through the Session Controller\'s established Agent lookup policy.',
   },
   {
-    key: 'sessionSkillCatalog',
+    key: 'skillCatalog',
     pkg: 'api-session-controller',
-    title: 'Session-addressed skill Remote adapter',
+    title: 'Skill Remote adapter',
     mode: 'core',
-    note: 'Lists the Session composition\'s user-invocable skills without activating a cold Agent.',
+    note: 'Lists the Session composition\'s user-invocable skills, or a preset\'s whole catalog, without activating a cold Agent.',
   },
   {
     key: 'jobController',

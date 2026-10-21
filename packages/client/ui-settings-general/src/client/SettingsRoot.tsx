@@ -15,8 +15,9 @@ import { createPortal } from 'react-dom'
 import clsx from 'clsx'
 import {
   ConnectionIndicator, Tooltip, useModalLayer,
-  IconAgentPresetOutlineMedium, IconArchiveOutlineMedium, IconCloseOutlineRegular, IconDataOutlineMedium,
-  IconPersonalizationOutlineMedium, IconSettingsOutlineMedium, IconUserOutlineMedium,
+  IconAgentPresetOutlineMedium, IconApiOutlineMedium, IconArchiveOutlineMedium, IconCloseOutlineRegular, IconDataOutlineMedium,
+  IconEditOutlineMedium, IconPersonalizationOutlineMedium, IconSettingsOutlineMedium, IconSkillOutlineMedium,
+  IconUserOutlineMedium,
 } from '@deepseek-ai/dsh-client-ui-primitives'
 import type { ConnectionIndicatorState } from '@deepseek-ai/dsh-client-ui-primitives'
 import type { SettingsRootComponentProps, SettingsSectionRow } from './shell-contract.ts'
@@ -35,6 +36,9 @@ function navIcon(id: string) {
   if (id === 'agent-presets') return <IconAgentPresetOutlineMedium className={css.navIcon} size={16} />
   if (id === 'plugins') return <IconPersonalizationOutlineMedium className={css.navIcon} size={16} />
   if (id === 'archived-sessions') return <IconArchiveOutlineMedium className={css.navIcon} size={16} />
+  if (id === 'skills') return <IconSkillOutlineMedium className={css.navIcon} size={16} />
+  if (id === 'prompt') return <IconEditOutlineMedium className={css.navIcon} size={16} />
+  if (id === 'mcp') return <IconApiOutlineMedium className={css.navIcon} size={16} />
   return <IconSettingsOutlineMedium className={css.navIcon} size={16} />
 }
 

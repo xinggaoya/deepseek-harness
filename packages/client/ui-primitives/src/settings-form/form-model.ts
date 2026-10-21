@@ -186,6 +186,41 @@ export function settingsTextField(field: string): SettingsFieldSpec {
 }
 
 /**
+ * A multi-line text field. The draft is stored verbatim — a prompt's line
+ * breaks and indentation are part of its text — while a blank draft clears the
+ * field.
+ * @param field - field name inside the namespace section.
+ * @returns the field's conversion spec.
+ */
+export function settingsTextAreaField(field: string): SettingsFieldSpec {
+  return {
+    field,
+    format: value => typeof value === 'string' ? value : '',
+    parse: (text) => {
+      return text.trim() === '' ? { kind: 'clear' } : { kind: 'set', value: text }
+    },
+  }
+}
+
+/**
+ * A two-state field. The draft carries the state as text, so a control that
+ * toggles it stages `'true'` or `'false'`; any other draft blocks the save.
+ * @param field - field name inside the namespace section.
+ * @returns the field's conversion spec.
+ */
+export function settingsBooleanField(field: string): SettingsFieldSpec {
+  return {
+    field,
+    format: value => value === true ? 'true' : 'false',
+    parse: (text) => {
+      if (text === 'true') return { kind: 'set', value: true }
+      if (text === 'false') return { kind: 'set', value: false }
+      return undefined
+    },
+  }
+}
+
+/**
  * Stages one card's edits over one settings namespace and writes them on save.
  *
  * The form publishes through a snapshot store because slot components read

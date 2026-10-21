@@ -432,6 +432,21 @@
     - id: ui-settings-plugins
       name: '@deepseek-ai/dsh-client-ui-settings-plugins'
 
+    # The Skills settings section: the skill catalog the current project
+    # offers, read over the Host's `skills` Remote namespace.
+    - id: ui-settings-skills
+      name: '@deepseek-ai/dsh-client-ui-settings-skills'
+
+    # The Default prompt settings section: the deployment persona the system
+    # prompt registry owns, edited over the `system-prompt` namespace.
+    - id: ui-settings-prompt
+      name: '@deepseek-ai/dsh-client-ui-settings-prompt'
+
+    # The MCP servers settings section: the servers this deployment connects
+    # to, edited over the `mcp-servers` namespace.
+    - id: ui-settings-mcp
+      name: '@deepseek-ai/dsh-client-ui-settings-mcp'
+
     # The official settings pages: one companion package per host-plane
     # namespace, each registering its page into the Plugins page while the
     # Host serves the namespace.

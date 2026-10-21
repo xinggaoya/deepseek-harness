@@ -115,14 +115,66 @@ export function SettingsValueField(props: Omit<SettingsFieldProps, 'hint'> & {
 }
 
 /**
+ * A staged multi-line field. The control keeps the draft verbatim, so a
+ * prompt's line breaks and indentation survive the round trip.
+ * @param props - the field's copy, its staged text, and the edit actions.
+ * @returns the labelled control.
+ */
+export function SettingsTextAreaField(props: Omit<SettingsFieldProps, 'hint'> & {
+  /** Optional explanation shown below the control. */
+  hint?: string
+  /** Visible rows the control opens with. */
+  rows?: number
+}) {
+  const messageId = `${props.id}-message`
+  const hasMessage = props.invalid || Boolean(props.hint)
+  return (
+    <div className={css.field}>
+      <div className={css.head}>
+        <div className={css.labelGroup}>
+          <label className={css.label} htmlFor={props.id}>{props.label}</label>
+        </div>
+        {props.overridden
+          ? (
+            <span className={css.badges}>
+              <Tag tone="neutral">{props.overriddenLabel}</Tag>
+              <button
+                type="button"
+                className={css.reset}
+                disabled={props.disabled}
+                onClick={props.onReset}
+              >
+                {props.resetLabel}
+              </button>
+            </span>
+          )
+          : null}
+      </div>
+      <textarea
+        id={props.id}
+        className={css.textArea}
+        rows={props.rows ?? 6}
+        {...props.invalid ? { 'aria-invalid': true } : {}}
+        aria-describedby={hasMessage ? messageId : undefined}
+        value={props.text}
+        disabled={props.disabled}
+        onChange={(event) => { props.onEdit(event.target.value) }}
+      />
+      {hasMessage
+        ? <p id={messageId} className={props.invalid ? css.invalid : css.hint}>{props.invalid ? props.invalidLabel : props.hint}</p>
+        : null}
+    </div>
+  )
+}
+
+/**
  * A write-only credential control. The value never rides a response, so the
  * control reports only whether one is configured and starts blank; a blank
  * draft writes nothing, which keeps the stored key rather than clearing it.
  * The control asks browsers not to autofill saved login passwords.
  * @param props - the field's copy, its staged text, and the configured state.
  * @returns the labelled control.
- */
-export function SettingsSecretField(props: Pick<SettingsFieldProps, 'id' | 'label' | 'hint' | 'text' | 'disabled' | 'onEdit'> & {
+ */export function SettingsSecretField(props: Pick<SettingsFieldProps, 'id' | 'label' | 'hint' | 'text' | 'disabled' | 'onEdit'> & {
   /** Whether the Host reports a configured credential for this reference. */
   configured: boolean
   /** Copy describing the configured state. */

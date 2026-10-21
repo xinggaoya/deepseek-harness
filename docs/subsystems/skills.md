@@ -234,7 +234,7 @@ The model-facing `skill({ name })` tool validates the kebab-case name, finds the
 
 ## Browser Session catalog
 
-`SkillListRequest` addresses one Session by `sessionId`; `SkillListValue` returns the user-invocable entries with name, description, optional usage guidance, and model-invocation availability. `SessionSkillCatalog` reads the Session cwd and recorded preset without activating an Agent. A live Agent may supply its scoped registry, while a cold Session uses the preset's standing scope.
+`SkillListRequest` addresses either one Session by `sessionId` or one project by `presetId` and `cwd`; `SkillListValue` returns entries with name, description, optional usage guidance, model- and user-invocation availability, and discovery source. `SkillCatalog` reads the Session cwd and recorded preset without activating an Agent, and reads a preset's standing scope plus the requested project directory for a configuration surface. A live Agent may supply its scoped registry, while a cold Session uses the preset's standing scope.
 
 <!-- BEGIN GENERATED cordis-surface (gen-cordis-catalog.ts) — do not edit between markers -->
 
@@ -244,19 +244,25 @@ The model-facing `skill({ name })` tool validates the kebab-case name, finds the
 
 Generated from source by `scripts/gen-cordis-catalog.ts` (verified fresh by `pnpm run verify-cordis-catalog` in doc-sync; regenerate with `pnpm run gen-cordis-catalog`) — the language sides differ only in locale-specific paired document paths. Signature blocks use a `ts cordis-catalog` fence and keep the original source JSDoc; dispatch modes are defined in the [primer](../cordis-primer.md#dispatch-modes), and the framework-inherited `ctx` API lives in [cordis-api/inherited.md](../cordis-api/inherited.md).
 
-<a id="ctxsessionskillcatalog--sessionskillcatalog"></a>
+<a id="ctxskillcatalog--skillcatalog"></a>
 
-### `ctx.sessionSkillCatalog` — `SessionSkillCatalog`
+### `ctx.skillCatalog` — `SkillCatalog`
 
 Host service backing `ctx.remote.skills` without activating a cold Agent.
 
 ```ts cordis-catalog
 /**
- * List the user-invocable skills visible to one Session composition.
- * @param request - Session identity whose cwd and preset select the catalog view.
+ * List the skills one composition offers.
+ *
+ * A Session request answers the human-facing composer: the Session's cwd
+ * and preset select the view, and only user-invocable skills are listed. A
+ * preset request answers a configuration surface: the preset's standing
+ * scope and the requested project directory select the view, and every
+ * discovered skill is listed with its invocation policy.
+ * @param request - Session identity or preset scope and project directory.
  * @param signal - caller lifetime carried by the Remote transport; admitted catalog reads retain their existing completion semantics.
- * @returns user-invocable skill metadata without loading skill bodies.
- * @throws RemoteError when the Session cannot be inspected or no registry can serve it.
+ * @returns skill metadata without loading skill bodies.
+ * @throws RemoteError when the Session cannot be inspected, the preset is unknown, or no registry can serve the view.
  */
 @Remote async list(request: SkillListRequest, signal: AbortSignal): Promise<SkillListValue>
 ```

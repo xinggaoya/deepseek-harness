@@ -1,0 +1,31 @@
+# Bilingual-pair consistency record for 2026-10-21-deployment-settings-pages.md (docs/i18n/README.md): per heading
+# section, a hash of its English and Chinese blocks outside code blocks and generated regions.
+# After editing either side, bring the other along and re-record with:
+#   pnpm run verify-translation-pairing --write .agents/notes/implemented/feature/2026-10-21-deployment-settings-pages.md
+/agent-note-own-the-deployment-s-skills-default-prompt-and-mcp-servers-in-the-settings-shell:
+  en: 73266a28b92561a6
+  zh: c4c1dce695e901e8
+/agent-note-own-the-deployment-s-skills-default-prompt-and-mcp-servers-in-the-settings-shell/problem:
+  en: d902e3c7114ef879
+  zh: 0c54a789a084f5da
+/agent-note-own-the-deployment-s-skills-default-prompt-and-mcp-servers-in-the-settings-shell/decision:
+  en: a15c7c13f167e5ac
+  zh: a15c7c13f167e5ac
+/agent-note-own-the-deployment-s-skills-default-prompt-and-mcp-servers-in-the-settings-shell/decision/the-skills-page-lists-it-does-not-edit:
+  en: 09043cde59ede546
+  zh: c80278c19020a73d
+/agent-note-own-the-deployment-s-skills-default-prompt-and-mcp-servers-in-the-settings-shell/decision/the-default-prompt-page-edits-the-deployment-persona:
+  en: 5757a152bc2420ba
+  zh: 122ba22cfc94074c
+/agent-note-own-the-deployment-s-skills-default-prompt-and-mcp-servers-in-the-settings-shell/decision/the-mcp-servers-page-configures-the-deployment-s-servers:
+  en: 70f082749c2cba1e
+  zh: 209c4dc7585cb6f9
+/agent-note-own-the-deployment-s-skills-default-prompt-and-mcp-servers-in-the-settings-shell/alternatives-considered:
+  en: 61cd76c655f6de7d
+  zh: d86067cb889674dc
+/agent-note-own-the-deployment-s-skills-default-prompt-and-mcp-servers-in-the-settings-shell/consequences:
+  en: b67d1ebf412ba804
+  zh: b955bcd28d54fdbe
+/agent-note-own-the-deployment-s-skills-default-prompt-and-mcp-servers-in-the-settings-shell/testing:
+  en: d2449d6b14e522f7
+  zh: 18ea04c87d1498d8

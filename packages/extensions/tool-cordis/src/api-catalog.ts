@@ -2568,20 +2568,6 @@ export const SERVICE_API: readonly ServiceApiEntry[] = [
     ],
   },
   {
-    key: 'sessionSkillCatalog',
-    summary: 'Host service backing `ctx.remote.skills` without activating a cold Agent.',
-    description: 'Host service backing `ctx.remote.skills` without activating a cold Agent.',
-    methods: [
-      {
-        signature: '@Remote async list(request: SkillListRequest, signal: AbortSignal): Promise<SkillListValue>',
-        description: 'List the user-invocable skills visible to one Session composition.',
-        parameters: [{ name: 'request', description: 'Session identity whose cwd and preset select the catalog view.' }, { name: 'signal', description: 'caller lifetime carried by the Remote transport; admitted catalog reads retain their existing completion semantics.' }],
-        returns: 'user-invocable skill metadata without loading skill bodies.',
-        throws: ['RemoteError when the Session cannot be inspected or no registry can serve it.'],
-      },
-    ],
-  },
-  {
     key: 'sessionTelemetry',
     summary: 'Loadable form of the backend contract: one implementation per context — the cordis `Service` registration under the `telemetry` key throws on a duplicate, cordis\' standard behavior.',
     description: 'Loadable form of the backend contract: one implementation per context — the cordis `Service` registration under the `telemetry` key throws on a duplicate, cordis\' standard behavior. A backend composes a SessionTelemetryCoordinator in its constructor to install the capture side.',
@@ -2766,6 +2752,20 @@ export const SERVICE_API: readonly ServiceApiEntry[] = [
         description: 'Enumerate plugin-contributed variables without executing their resolvers.',
         parameters: [],
         returns: 'declarations sorted by environment variable name.',
+      },
+    ],
+  },
+  {
+    key: 'skillCatalog',
+    summary: 'Host service backing `ctx.remote.skills` without activating a cold Agent.',
+    description: 'Host service backing `ctx.remote.skills` without activating a cold Agent.',
+    methods: [
+      {
+        signature: '@Remote async list(request: SkillListRequest, signal: AbortSignal): Promise<SkillListValue>',
+        description: 'List the skills one composition offers.\n\nA Session request answers the human-facing composer: the Session\'s cwd and preset select the view, and only user-invocable skills are listed. A preset request answers a configuration surface: the preset\'s standing scope and the requested project directory select the view, and every discovered skill is listed with its invocation policy.',
+        parameters: [{ name: 'request', description: 'Session identity or preset scope and project directory.' }, { name: 'signal', description: 'caller lifetime carried by the Remote transport; admitted catalog reads retain their existing completion semantics.' }],
+        returns: 'skill metadata without loading skill bodies.',
+        throws: ['RemoteError when the Session cannot be inspected, the preset is unknown, or no registry can serve the view.'],
       },
     ],
   },
@@ -7651,7 +7651,7 @@ export const TYPE_API: readonly TypeApiEntry[] = [
   },
   {
     name: 'SkillEntry',
-    declaration: 'export interface SkillEntry {\n    readonly path?: string;\n    readonly name: string;\n    readonly description: string;\n    readonly whenToUse?: string;\n    readonly modelInvocable: boolean;\n}',
+    declaration: 'export interface SkillEntry {\n    readonly path?: string;\n    readonly name: string;\n    readonly description: string;\n    readonly whenToUse?: string;\n    readonly modelInvocable: boolean;\n    readonly userInvocable: boolean;\n    readonly source: string;\n}',
   },
   {
     name: 'SkillInvocationPolicy',
@@ -7659,7 +7659,7 @@ export const TYPE_API: readonly TypeApiEntry[] = [
   },
   {
     name: 'SkillListRequest',
-    declaration: 'export interface SkillListRequest {\n    readonly sessionId: SessionId;\n}',
+    declaration: 'export type SkillListRequest = SkillSessionListRequest | SkillPresetListRequest;',
   },
   {
     name: 'SkillListValue',
@@ -7668,6 +7668,10 @@ export const TYPE_API: readonly TypeApiEntry[] = [
   {
     name: 'SkillLookupOptions',
     declaration: 'export interface SkillLookupOptions {\n    readonly cwd?: string | undefined;\n    readonly signal?: AbortSignal | undefined;\n}',
+  },
+  {
+    name: 'SkillPresetListRequest',
+    declaration: 'export interface SkillPresetListRequest {\n    readonly presetId?: string;\n    readonly cwd?: string;\n}',
   },
   {
     name: 'SkillProvider',
@@ -7688,6 +7692,10 @@ export const TYPE_API: readonly TypeApiEntry[] = [
   {
     name: 'SkillResourceBase',
     declaration: 'export type SkillResourceBase = {\n    readonly kind: \'directory\';\n    readonly path: string;\n} | {\n    readonly kind: \'url\';\n    readonly url: string;\n} | {\n    readonly kind: \'opaque\';\n    readonly description: string;\n};',
+  },
+  {
+    name: 'SkillSessionListRequest',
+    declaration: 'export interface SkillSessionListRequest {\n    readonly sessionId: SessionId;\n}',
   },
   {
     name: 'SkillSource',
@@ -8003,7 +8011,7 @@ export const TYPE_API: readonly TypeApiEntry[] = [
   },
   {
     name: 'SystemPrompt',
-    declaration: 'export class SystemPrompt extends Service {\n    static Config: z<Config>;\n    constructor(ctx: Context, config: Config);\n    section(section: PromptSection): () => void;\n    getSectionOrder(name: PromptSectionOrderName): number;\n    getContextOrder(name: PromptContextOrderName): number;\n    context(context: PromptContext): () => void;\n    suppressRuntimeContext(): () => void;\n    tools(provider: (context: AssembleContext) => ToolProviderResult): () => void;\n    variable(name: string, provider: (context: AssembleContext) => string | undefined): () => void;\n    refreshContext(assembly: PromptAssembly, context: AssembleContext = {}): PromptAssembly;\n    async assemble(context: AssembleContext = {}): Promise<PromptAssembly>;\n}',
+    declaration: 'export class SystemPrompt extends Service {\n    static Config;\n    constructor(ctx: Context, config: ResolvedConfig);\n    section(section: PromptSection): () => void;\n    getSectionOrder(name: PromptSectionOrderName): number;\n    getContextOrder(name: PromptContextOrderName): number;\n    context(context: PromptContext): () => void;\n    suppressRuntimeContext(): () => void;\n    tools(provider: (context: AssembleContext) => ToolProviderResult): () => void;\n    variable(name: string, provider: (context: AssembleContext) => string | undefined): () => void;\n    refreshContext(assembly: PromptAssembly, context: AssembleContext = {}): PromptAssembly;\n    async assemble(context: AssembleContext = {}): Promise<PromptAssembly>;\n}',
   },
   {
     name: 'SystemPromptMessageSource',

@@ -234,7 +234,7 @@ interface Config {
 
 ## 浏览器 Session 目录
 
-`SkillListRequest` 通过 `sessionId` 指定一个 Session；`SkillListValue` 返回允许用户调用的条目，其中包含名称、描述、可选使用提示与模型调用可用性。`SessionSkillCatalog` 在不激活 Agent 的前提下读取 Session cwd 与记录的 preset。live Agent 可以提供其作用域 registry，冷 Session 则使用 preset 的 standing scope。
+`SkillListRequest` 通过 `sessionId` 指定一个 Session，或通过 `presetId` 与 `cwd` 指定一个项目；`SkillListValue` 返回条目，其中包含名称、描述、可选使用提示、模型与用户调用可用性以及发现来源。`SkillCatalog` 在不激活 Agent 的前提下读取 Session cwd 与记录的 preset，并为配置界面读取 preset 的 standing scope 与所请求的项目目录。live Agent 可以提供其作用域 registry，冷 Session 则使用 preset 的 standing scope。
 
 <!-- BEGIN GENERATED cordis-surface (gen-cordis-catalog.ts) — do not edit between markers -->
 
@@ -244,19 +244,25 @@ interface Config {
 
 Generated from source by `scripts/gen-cordis-catalog.ts` (verified fresh by `pnpm run verify-cordis-catalog` in doc-sync; regenerate with `pnpm run gen-cordis-catalog`) — the language sides differ only in locale-specific paired document paths. Signature blocks use a `ts cordis-catalog` fence and keep the original source JSDoc; dispatch modes are defined in the [primer](../cordis-primer.zh.md#dispatch-modes), and the framework-inherited `ctx` API lives in [cordis-api/inherited.md](../cordis-api/inherited.md).
 
-<a id="ctxsessionskillcatalog--sessionskillcatalog"></a>
+<a id="ctxskillcatalog--skillcatalog"></a>
 
-### `ctx.sessionSkillCatalog` — `SessionSkillCatalog`
+### `ctx.skillCatalog` — `SkillCatalog`
 
 Host service backing `ctx.remote.skills` without activating a cold Agent.
 
 ```ts cordis-catalog
 /**
- * List the user-invocable skills visible to one Session composition.
- * @param request - Session identity whose cwd and preset select the catalog view.
+ * List the skills one composition offers.
+ *
+ * A Session request answers the human-facing composer: the Session's cwd
+ * and preset select the view, and only user-invocable skills are listed. A
+ * preset request answers a configuration surface: the preset's standing
+ * scope and the requested project directory select the view, and every
+ * discovered skill is listed with its invocation policy.
+ * @param request - Session identity or preset scope and project directory.
  * @param signal - caller lifetime carried by the Remote transport; admitted catalog reads retain their existing completion semantics.
- * @returns user-invocable skill metadata without loading skill bodies.
- * @throws RemoteError when the Session cannot be inspected or no registry can serve it.
+ * @returns skill metadata without loading skill bodies.
+ * @throws RemoteError when the Session cannot be inspected, the preset is unknown, or no registry can serve the view.
  */
 @Remote async list(request: SkillListRequest, signal: AbortSignal): Promise<SkillListValue>
 ```

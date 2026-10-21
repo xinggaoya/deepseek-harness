@@ -2261,6 +2261,51 @@ export interface ReconnectConfig {
 ```
 <!-- END GENERATED config-catalog:@deepseek-ai/dsh-mcp-client -->
 
+<!-- BEGIN GENERATED config-catalog:@deepseek-ai/dsh-mcp-servers -->
+<a id="deepseek-aidsh-mcp-servers"></a>
+
+## `@deepseek-ai/dsh-mcp-servers`
+
+- `inject`: `tools`
+- `refs`: `Volatile` (`@deepseek-ai/cordis`)
+- `source`: [`packages/mcp/mcp-servers/src/index.ts:22`](../packages/mcp/mcp-servers/src/index.ts)
+
+```ts config-catalog
+/** The resolved configuration of the MCP servers namespace. */
+export interface ResolvedConfig {
+  /** The configured servers, keyed by server name. */
+  readonly servers: Volatile<Record<string, McpServerConfig>>
+}
+
+/** One configured server as the namespace stores it. */
+export type McpServerConfig =
+  | {
+    /** Transport the server speaks. */
+    readonly transport: 'stdio'
+    /** The command that starts the server. */
+    readonly command: string
+    /** Arguments passed to the command. */
+    readonly args: string[]
+    /** Environment variables the server reads. */
+    readonly env: Record<string, string>
+    /** Working directory of the spawned server. */
+    readonly cwd: string
+    /** Whether the deployment connects to this server. */
+    readonly enabled: boolean
+  }
+  | {
+    /** Transport the server speaks. */
+    readonly transport: 'streamable-http'
+    /** The server's endpoint. */
+    readonly url: string
+    /** Headers the endpoint requires. */
+    readonly headers: Record<string, string>
+    /** Whether the deployment connects to this server. */
+    readonly enabled: boolean
+  }
+```
+<!-- END GENERATED config-catalog:@deepseek-ai/dsh-mcp-servers -->
+
 <!-- BEGIN GENERATED config-catalog:@deepseek-ai/dsh-message-feedback -->
 <a id="deepseek-aidsh-message-feedback"></a>
 
@@ -3541,30 +3586,27 @@ export interface Config {
 
 ## `@deepseek-ai/dsh-system-prompt`
 
-- `source`: [`packages/core/system-prompt/src/index.ts:258`](../packages/core/system-prompt/src/index.ts)
+- `refs`: `Volatile` (`@deepseek-ai/cordis`)
+- `source`: [`packages/core/system-prompt/src/index.ts:297`](../packages/core/system-prompt/src/index.ts)
 
 ```ts config-catalog
-/** Plugin config: the deployment-authored fragment of the system prompt (see {@link Config.personaPrefix} for its contract). */
-export interface Config {
-  /** Include the fixed DeepSeek Harness identity before the deployment persona (default true). */
-  includeHarnessIdentity?: boolean
-  /** Include optional runtime-context snapshots in model history (default true); required context remains. */
+/**
+ * The resolved configuration the registry reads. The persona values are
+ * volatile: a deployment may change them while the Host runs, and the registry
+ * reads the live reference at every assembly.
+ */
+export interface ResolvedConfig {
+  /** Include the fixed DeepSeek Harness identity before the deployment persona. */
+  includeHarnessIdentity?: Volatile<boolean>
+  /** Include optional runtime-context snapshots in model history. */
   includeRuntimeContext?: boolean
-  /**
-   * Deployment-wide persona prefix template before first-party guidance. A scoped section named
-   * `deployment:persona-prefix` shadows it; `{{variable}}` references are strict.
-   */
-  personaPrefix?: string
-  /**
-   * Persona suffix template after first-party guidance. A scoped `deployment:persona-suffix`
-   * section shadows it; `{{variable}}` references are strict. Defaults to empty.
-   */
-  personaSuffix?: string
-  /**
-   * Model-facing tool names in order, with {@link TOOL_ORDER_REST} exactly once.
-   * Invalid fields fail at load and unknown names fail at assembly; known names
-   * hidden in one scope may be absent there. Omitted means lexicographic order.
-   */
+  /** Deployment-wide persona prefix template. */
+  personaPrefix?: Volatile<string>
+  /** Persona suffix template. */
+  personaSuffix?: Volatile<string>
+  /** Whether the persona prefix is the complete system prompt. */
+  personaComplete?: Volatile<boolean>
+  /** Model-facing tool names in order. */
   toolOrder?: string[]
 }
 ```
@@ -4631,10 +4673,13 @@ These load from a `cordis.yml` entry with no `config:` block; they declare no co
 | `@deepseek-ai/dsh-client-ui-settings` | — | [`packages/client/ui-settings/src/index.ts`](../packages/client/ui-settings/src/index.ts) |
 | `@deepseek-ai/dsh-client-ui-settings-agent-loop` | — | [`packages/client/ui-settings-agent-loop/src/index.ts`](../packages/client/ui-settings-agent-loop/src/index.ts) |
 | `@deepseek-ai/dsh-client-ui-settings-general` | — | [`packages/client/ui-settings-general/src/index.ts`](../packages/client/ui-settings-general/src/index.ts) |
+| `@deepseek-ai/dsh-client-ui-settings-mcp` | — | [`packages/client/ui-settings-mcp/src/index.ts`](../packages/client/ui-settings-mcp/src/index.ts) |
 | `@deepseek-ai/dsh-client-ui-settings-plugin-inventory` | — | [`packages/client/ui-settings-plugin-inventory/src/index.ts`](../packages/client/ui-settings-plugin-inventory/src/index.ts) |
 | `@deepseek-ai/dsh-client-ui-settings-plugins` | — | [`packages/client/ui-settings-plugins/src/index.ts`](../packages/client/ui-settings-plugins/src/index.ts) |
+| `@deepseek-ai/dsh-client-ui-settings-prompt` | — | [`packages/client/ui-settings-prompt/src/index.ts`](../packages/client/ui-settings-prompt/src/index.ts) |
 | `@deepseek-ai/dsh-client-ui-settings-session-log` | — | [`packages/client/ui-settings-session-log/src/index.ts`](../packages/client/ui-settings-session-log/src/index.ts) |
 | `@deepseek-ai/dsh-client-ui-settings-shell` | — | [`packages/client/ui-settings-shell/src/index.ts`](../packages/client/ui-settings-shell/src/index.ts) |
+| `@deepseek-ai/dsh-client-ui-settings-skills` | — | [`packages/client/ui-settings-skills/src/index.ts`](../packages/client/ui-settings-skills/src/index.ts) |
 | `@deepseek-ai/dsh-client-ui-settings-subagent` | — | [`packages/client/ui-settings-subagent/src/index.ts`](../packages/client/ui-settings-subagent/src/index.ts) |
 | `@deepseek-ai/dsh-client-ui-settings-web-search` | — | [`packages/client/ui-settings-web-search/src/index.ts`](../packages/client/ui-settings-web-search/src/index.ts) |
 | `@deepseek-ai/dsh-client-ui-shortcuts` | — | [`packages/client/ui-shortcuts/src/index.ts`](../packages/client/ui-shortcuts/src/index.ts) |

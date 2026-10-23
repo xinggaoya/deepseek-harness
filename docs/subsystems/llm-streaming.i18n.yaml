@@ -23,6 +23,9 @@
 /llm-streaming/the-adapter-contract:
   en: f9dacddf34a48d66
   zh: 1a426c55909c081f
+/llm-streaming/model-catalogs:
+  en: 5b0d6ccc0eede27b
+  zh: fe0e49ea79856b82
 /llm-streaming/resolvedretrypolicy:
   en: cbab49d689311d4d
   zh: 76246140eabaa55e
@@ -36,8 +39,8 @@
   en: 58dec2259b0b1c6f
   zh: fc99fe965acaabf3
 /llm-streaming/the-model-request:
-  en: 2b0831aaae8e1cdf
-  zh: f669d93d1b9d6025
+  en: d00c41b72d5da20b
+  zh: f6e44306b2a989ad
 /llm-streaming/the-model-request/the-request-envelope-llmcallconfig-and-the-logged-header:
   en: f2e6932e211f179b
   zh: 75112586a6f3f4aa

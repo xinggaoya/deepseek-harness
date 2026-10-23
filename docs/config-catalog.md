@@ -1770,6 +1770,47 @@ export interface Config extends ProtocolConfig {
 ```
 <!-- END GENERATED config-catalog:@deepseek-ai/dsh-llm-deepseek-api-key -->
 
+<!-- BEGIN GENERATED config-catalog:@deepseek-ai/dsh-llm-models-dev -->
+<a id="deepseek-aidsh-llm-models-dev"></a>
+
+## `@deepseek-ai/dsh-llm-models-dev`
+
+- `inject`: `llm`
+- `source`: [`packages/llm/llm-models-dev/src/index.ts:65`](../packages/llm/llm-models-dev/src/index.ts)
+
+```ts config-catalog
+/** Configuration for the catalog service. */
+export interface Config {
+  /** Catalog endpoint; the default is models.dev's own API document. */
+  url?: string
+  /** How often the catalog is refetched, in milliseconds. */
+  refreshIntervalMs?: number
+  /** How long one catalog request may take, in milliseconds. */
+  timeoutMs?: number
+  /** The largest catalog reply accepted, in bytes. */
+  maxBytes?: number
+  /**
+   * Whether the catalog keeps the models models.dev records as deprecated.
+   *
+   * A deprecated model is one its provider retired; the catalog drops it
+   * unless a deployment asks for it.
+   */
+  includeDeprecated?: boolean
+  /**
+   * Where the fetched catalog is kept for the next start.
+   *
+   * The default is a file in the harness home's cache directory. A deployment
+   * that keeps its own home names the file it wants there.
+   */
+  cachePath?: string
+  /** How long a failed attempt waits before the next one, in milliseconds. */
+  retryIntervalMs?: number
+  /** Harness home override for the default cache location. */
+  dshHome?: string
+}
+```
+<!-- END GENERATED config-catalog:@deepseek-ai/dsh-llm-models-dev -->
+
 <!-- BEGIN GENERATED config-catalog:@deepseek-ai/dsh-llm-pi-ai -->
 <a id="deepseek-aidsh-llm-pi-ai"></a>
 
@@ -1777,7 +1818,7 @@ export interface Config extends ProtocolConfig {
 
 - `inject`: `llm`
 - `refs`: `Api` (`@earendil-works/pi-ai`) · `CacheRetention` (`@earendil-works/pi-ai`) · `Model` (`@earendil-works/pi-ai`) · `ModelThinkingLevel` (`@earendil-works/pi-ai`) · `OpenAICompletionsCompat` (`@earendil-works/pi-ai`) · [`RetryPolicyConfig`](../packages/llm/llm/src/index.ts) · `ThinkingBudgets` (`@earendil-works/pi-ai`) · `Transport` (`@earendil-works/pi-ai`) · `Volatile` (`@deepseek-ai/cordis`)
-- `source`: [`packages/llm/llm-pi-ai/src/config.ts:222`](../packages/llm/llm-pi-ai/src/config.ts)
+- `source`: [`packages/llm/llm-pi-ai/src/config.ts:230`](../packages/llm/llm-pi-ai/src/config.ts)
 
 ```ts config-catalog
 /** Plugin configuration: the provider routes this instance owns. */

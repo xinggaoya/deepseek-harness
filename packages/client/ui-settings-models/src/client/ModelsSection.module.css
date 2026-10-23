@@ -19,6 +19,21 @@
   color: var(--dsw-alias-label-primary);
 }
 
+/* The page's own heading block, with the catalog refresh at its right edge. */
+.header {
+  display: flex;
+  align-items: flex-start;
+  justify-content: space-between;
+  gap: 12px;
+}
+
+.headerText {
+  display: flex;
+  flex-direction: column;
+  gap: 12px;
+  min-width: 0;
+}
+
 .intro {
   margin: 0;
   font-size: 14px;

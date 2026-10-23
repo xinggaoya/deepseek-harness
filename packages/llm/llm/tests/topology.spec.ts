@@ -1,7 +1,7 @@
 import { describe, expect, it, vi } from 'vitest'
 import { Context } from '@deepseek-ai/cordis'
 import LlmRuntime, { LlmAdapter, LlmError } from '@deepseek-ai/dsh-llm'
-import type { GenerateOptions, LlmConfigurableProvider, StreamChunk } from '@deepseek-ai/dsh-llm'
+import type { GenerateOptions, LlmCatalogState, LlmConfigurableProvider, StreamChunk } from '@deepseek-ai/dsh-llm'
 
 class NoopAdapter extends LlmAdapter {
 
@@ -337,5 +337,59 @@ describe('imageRequestPricing resolution', () => {
     expect(ctx.llm.imageRequestPricing('missing', 'vision')).toBeUndefined()
     dispose()
     expect(ctx.llm.imageRequestPricing('a', 'vision')).toBeUndefined()
+  })
+})
+
+describe('the catalog behind the provider routes', () => {
+  /** A catalog source that can be re-read, and the reads it recorded. */
+  class CatalogSource {
+    readonly refreshes: number[] = []
+
+    constructor(private readonly fail?: Error) {}
+
+    catalogState(): LlmCatalogState {
+      return { refreshable: true }
+    }
+
+    async refreshCatalog(): Promise<void> {
+      this.refreshes.push(this.refreshes.length)
+      if (this.fail !== undefined) throw this.fail
+    }
+  }
+
+  it('reports no re-readable catalog while no source is registered', async () => {
+    const ctx = await setup()
+    expect(ctx.llm.catalogState()).toEqual({ refreshable: false })
+  })
+
+  it('reports a re-readable catalog once a source registers one', async () => {
+    const ctx = await setup()
+    const dispose = ctx.llm.registerCatalogSource(new CatalogSource())
+    expect(ctx.llm.catalogState()).toEqual({ refreshable: true })
+    dispose()
+    expect(ctx.llm.catalogState()).toEqual({ refreshable: false })
+  })
+
+  it('asks every source to re-read its catalog', async () => {
+    const ctx = await setup()
+    const first = new CatalogSource()
+    const second = new CatalogSource()
+    ctx.llm.registerCatalogSource(first)
+    ctx.llm.registerCatalogSource(second)
+
+    await ctx.llm.refreshCatalog()
+    expect(first.refreshes).toHaveLength(1)
+    expect(second.refreshes).toHaveLength(1)
+  })
+
+  it('asks every source even when one of them fails, and reports the first failure', async () => {
+    const ctx = await setup()
+    const failing = new CatalogSource(new Error('the catalog source is offline'))
+    const working = new CatalogSource()
+    ctx.llm.registerCatalogSource(failing)
+    ctx.llm.registerCatalogSource(working)
+
+    await expect(ctx.llm.refreshCatalog()).rejects.toThrow('the catalog source is offline')
+    expect(working.refreshes).toHaveLength(1)
   })
 })

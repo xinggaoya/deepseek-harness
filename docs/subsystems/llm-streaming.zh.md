@@ -307,6 +307,12 @@ interface LlmImageRequestPricing {
 - **每个提供方 HTTP 请求都携带应用归属头。** 适配器发送 `attributionHeaders()`（见下文）作为 `User-Agent` 基线，并通过协议级测试加以证明。
 - **回放状态归适配器所有；其切分是共享词汇。** 成功的 `finish` 可以携带一个 `ReplayEnvelope`：不透明的响应级元数据，加上与发射块序列对齐的可选逐块条目。对齐关系是 harness 的词汇——组装丢弃某个块时，同一位置的条目一并丢弃，因此存储的元数据始终描述存储的内容。循环把裁剪后的数据与组装后的 assistant 消息一起存储。后续请求中，仅当历史提供方与目标提供方当前注册到完全相同的适配器实例时，`LlmRuntime` 才会传递该状态。该适配器负责校验状态并拥有所有跨模型或跨提供方转换；其他适配器只会收到提供方无关的内容以及提供方／模型字段，不会收到私有状态。持久化内容保持权威：读取适配器无法使用的已存状态只会把这一条消息降级为提供方无关转换并带出诊断，而不是让请求失败。
 
+## 模型目录
+
+提供方路由的模型列表来自某个目录。已装的 pi-ai 目录随适配器包一起发布，因此它只列出该包发布时已知的模型；路由也可以改为从实时目录取得模型。`ctx.llmModelsDev` 拥有 models.dev 目录：它按计划抓取公开的目录文档，并发布每个提供方的模型及其上下文窗口、输出上限、输入类型与思考级别。提供方所命名的 AI SDK 提供方包是能力清单无法承载的那一个事实——那个包只说一种线上协议——因此实时目录描述而已装目录未发布的路由仍能触达其提供方。
+
+实时目录决定路由服务哪些模型、每个模型能做什么；已装目录仍决定如何与它描述的模型对话，因此两个目录都列出的模型保留已装的协议、兼容开关与输入限制。路由的 `models` 列表仍然整体替换所服务的目录，`modelOverrides` 仍然只重塑其中一个模型，因此必须服务精确集合的部署方在自己的 profile 里写明。路由的模型在目录首次尝试报告它们之前都是未知的，因此点名单个模型的操作会等待那次尝试，而不是报告一个未知模型。实时目录记录的提供方加入可配置提供方目录，因此配置界面会把它们与已装目录提供的提供方并列提供，而被替换的目录会重建该目录。
+
 ## `ResolvedRetryPolicy`
 
 重试配置会在路由注册前解析为不可变的可辨识联合。normal mode 携带 `mode: 'normal'`、有限的 `maxRetries`、`retryableCodes`，以及必填的 `initialDelayMs`、`maxDelayMs` 与 `jitterRatio`；always mode 携带 `mode: 'always'` 和相同的必填退避字段，但没有有限上限。省略提供方策略时使用重试五次的 normal 默认值。分层 settings 在切换到 always 模式后可能保留仅属于 normal 的 `maxRetries` 或 `retryableCodes`；解析器会忽略这些未启用字段，并捕获纯 always 策略。`LlmRuntime.providerRetryPolicy(provider)` 返回注册值；调用选定实际提供服务的注册后，`llmRetryPolicyOf(stream)` 返回从中捕获的值，因此之后释放或替换路由都无法改变进行中失败的恢复策略。可选配置输入字段由[生成的配置目录](../config-catalog.zh.md)列出。
@@ -510,6 +516,15 @@ interface LlmConfigurableProvider {
    * Absent when the route has no fixed endpoint.
    */
   defaultBaseURL?: string
+  /**
+   * Wire protocol the route's models speak when the profile names no `api`;
+   * the protocol counterpart of {@link defaultBaseURL}. A route the owning
+   * adapter serves from a catalog of its own takes that catalog's protocol,
+   * which the adapter states here so a configuration surface can show what
+   * was selected instead of asking for it. Absent when the route states no
+   * protocol — a hand-declared route, whose models each carry their own.
+   */
+  defaultApi?: string
   /** Environment variables used to construct a provider endpoint; absent when none are reported. */
   baseURLEnv?: readonly string[]
   /** Authentication the adapter performs when the profile names no credential reference; absent when it reports none. */
@@ -530,6 +545,45 @@ interface LlmNativeAuth {
   oauth: boolean
 }
 ```
+
+路由的模型可以来自 harness 抓取的目录，而不是其适配器自带的那份。目录来源会向 LLM 服务注册，因此配置界面可以提供再次抓取。
+
+```ts type-equiv
+/**
+ * The catalog the provider routes' models come from, as far as the adapters
+ * report it.
+ *
+ * A route may draw its models from a catalog the harness fetches (a public
+ * provider catalog) rather than from the one its adapter ships. A
+ * configuration surface offers to re-read such a catalog, so it needs to know
+ * whether one is there to re-read.
+ */
+interface LlmCatalogState {
+  /** Whether a catalog can be re-read on demand. */
+  readonly refreshable: boolean
+}
+```
+
+```ts type-equiv
+/**
+ * A catalog the provider routes' models can be drawn from.
+ *
+ * A catalog source owns its own fetch and reports whether it can be re-read;
+ * the LLM service only holds the sources a composition registered with it.
+ */
+interface LlmCatalogSource {
+  /** The catalog's state, as far as this source reports it. */
+  catalogState(): LlmCatalogState
+  /**
+   * Re-read the catalog.
+   * @returns a promise that settles once the catalog has been re-read.
+   * @throws the source's own failure when the catalog could not be re-read.
+   */
+  refreshCatalog(): Promise<void>
+}
+```
+
+`catalogState()` 报告是否存在目录；`refreshCatalog()` 让每个已注册的来源重新读取自己的目录，并报告首个失败。
 
 ```ts type-equiv
 /** One adapter-discovered model; catalog membership is advisory, not request validation. */
@@ -1019,6 +1073,37 @@ registerConfigurableProviders(entries: readonly LlmConfigurableProvider[]): Dire
 @Remote listConfigurableProviders(): LlmConfigurableProvider[]
 
 /**
+ * Register a catalog the provider routes' models can be drawn from.
+ *
+ * A catalog source owns its own fetch; registering it here lets a
+ * configuration surface ask whether one is there to re-read and ask for the
+ * re-read itself. Disposed with the fiber.
+ * @param source - the catalog source this registration owns.
+ * @returns the disposer that withdraws the source.
+ */
+registerCatalogSource(source: LlmCatalogSource): () => void
+
+/**
+ * The catalog behind the provider routes.
+ *
+ * A configuration surface uses this to decide whether it offers to re-read
+ * a catalog.
+ * @returns the catalog state the registered sources report; no re-readable
+ *   catalog reports none.
+ */
+@Remote catalogState(): LlmCatalogState
+
+/**
+ * Re-read the catalog behind the provider routes.
+ *
+ * Every source is asked, so one source's failure does not leave another's
+ * catalog stale; the first failure is the one reported.
+ * @returns a promise that settles once every source has re-read its
+ *   catalog, or rejects with the first failure.
+ */
+@Remote async refreshCatalog(): Promise<void>
+
+/**
  * Offer to interrogate provider endpoints on behalf of the settings
  * namespace this plugin owns. The namespace is the key because that is what
  * a configuration surface already holds from the configurable-provider
@@ -1151,6 +1236,49 @@ Types: [FileAttachmentRef](attachment.zh.md) · [ImageAttachmentRef](attachment.
 
 Source: [`packages/llm/llm/src/index.ts`](../../packages/llm/llm/src/index.ts)
 
+<a id="ctxllmmodelsdev--modelsdevcatalog"></a>
+
+### `ctx.llmModelsDev` — `ModelsDevCatalog`
+
+The models.dev catalog, fetched on a schedule and read by identity.
+
+```ts cordis-catalog
+/**
+ * Settles when the service has a catalog to serve.
+ *
+ * A composition that restored the cached catalog answers at once; one with
+ * no cache waits for the first attempt, whether it succeeded or not, so a
+ * consumer reads what the service has rather than an empty catalog.
+ * @returns a promise that settles once a catalog is available.
+ */
+ready(): Promise<void>
+
+/**
+ * The catalog as last fetched.
+ * @returns the current catalog, or `undefined` before the first successful fetch.
+ */
+snapshot(): ModelsDevSnapshot | undefined
+
+/**
+ * One provider's facts from the current catalog.
+ * @param id - the provider's models.dev id.
+ * @returns the provider's facts, or `undefined` when the catalog does not carry it.
+ */
+provider(id: string): ModelsDevProviderFacts | undefined
+
+/**
+ * Fetch the catalog now and replace the current one.
+ *
+ * A failed fetch rejects, leaving the previous catalog in place; the
+ * scheduled refresh reports its own failures and keeps going.
+ * @returns the catalog that was fetched.
+ * @throws Error when the endpoint is unreachable or does not answer a catalog.
+ */
+async refresh(): Promise<ModelsDevSnapshot>
+```
+
+Source: [`packages/llm/llm-models-dev/src/index.ts`](../../packages/llm/llm-models-dev/src/index.ts)
+
 <a id="llm-events"></a>
 
 ### `llm/*` events
@@ -1199,4 +1327,31 @@ Waterfall around every streaming model call (retry, replay, routing). Bound to t
 ```
 
 Source: [`packages/llm/llm/src/index.ts`](../../packages/llm/llm/src/index.ts)
+
+<a id="llmmodelsdev-events"></a>
+
+### `llmModelsDev/*` events
+
+<a id="llmmodelsdevrefresh--emit"></a>
+
+#### `llmModelsDev/refresh` — emit
+
+The models.dev catalog was replaced by a newly available one.
+
+Consumers that project the catalog into a configuration surface re-read the service's current snapshot when this fires; the event carries no payload because the service owns the current one. Observer failures are contained and cannot veto the replacement.
+
+```ts cordis-catalog
+/**
+ * The models.dev catalog was replaced by a newly available one.
+ *
+ * Consumers that project the catalog into a configuration surface re-read
+ * the service's current snapshot when this fires; the event carries no
+ * payload because the service owns the current one. Observer failures are
+ * contained and cannot veto the replacement.
+ * @mode emit
+ */
+'llmModelsDev/refresh'(): void
+```
+
+Source: [`packages/llm/llm-models-dev/src/types.ts`](../../packages/llm/llm-models-dev/src/types.ts)
 <!-- END GENERATED cordis-surface -->

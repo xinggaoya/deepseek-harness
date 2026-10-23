@@ -208,6 +208,8 @@ function scriptedFace(overrides: {
         { provider: 'plain', displayName: 'plain', settingsNs: 'llm-plain', settingsPath: ['profiles', 'plain'], active: false },
       ].map(({ active: _active, ...entry }) => entry)))),
       discoverModels: vi.fn(() => Promise.resolve(remoteOk([]))),
+      catalogState: vi.fn(() => Promise.resolve(remoteOk({ refreshable: false }))),
+      refreshCatalog: vi.fn(() => Promise.resolve(remoteOk(undefined))),
     },
     settings: {
       describe: vi.fn(() => Promise.resolve(remoteOk({ writable: true, hasDocument: false, namespaces: wireNamespaces() }))),
@@ -2059,6 +2061,35 @@ describe('ModelsSection', () => {
       renderSlot={() => null}
     />)
     await screen.findByText('DeepSeek')
+  })
+
+  it('offers no catalog refresh while the Host has no catalog to re-read', async () => {
+    await mountSection()
+    expect(screen.queryByRole('button', { name: en.refreshCatalog })).toBeNull()
+  })
+
+  it('re-reads the catalog when the user asks for it', async () => {
+    const scripted = scriptedFace()
+    scripted.face.llm.catalogState.mockResolvedValue(remoteOk({ refreshable: true }))
+    await mountFace(scripted)
+    const button = screen.getByRole('button', { name: en.refreshCatalog })
+    fireEvent.click(button)
+    await waitFor(() => { expect(scripted.face.llm.refreshCatalog).toHaveBeenCalledTimes(1) })
+  })
+
+  it('marks the catalog refresh as running while the Host works on it', async () => {
+    const scripted = scriptedFace()
+    scripted.face.llm.catalogState.mockResolvedValue(remoteOk({ refreshable: true }))
+    let release: (() => void) | undefined
+    const gate = new Promise<void>((resolve) => { release = resolve })
+    scripted.face.llm.refreshCatalog.mockImplementation(() => gate.then(() => remoteOk(undefined)))
+    await mountFace(scripted)
+    const button = screen.getByRole('button', { name: en.refreshCatalog })
+    fireEvent.click(button)
+    await waitFor(() => { expect(button.getAttribute('aria-busy')).toBe('true') })
+    expect((button as HTMLButtonElement).disabled).toBe(true)
+    release?.()
+    await waitFor(() => { expect(button.getAttribute('aria-busy')).toBe('false') })
   })
 
   it('removes by unsetting the profile path, never by rebuilding the section', async () => {

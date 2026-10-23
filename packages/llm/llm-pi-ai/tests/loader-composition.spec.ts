@@ -13,6 +13,7 @@ import AuthorizationService from '@deepseek-ai/dsh-authorization'
 import LocalCredentialProvider from '@deepseek-ai/dsh-credentials-local'
 import { profileComposition } from '../../../settings/settings/tests/profile-composition.ts'
 import * as LlmPiAi from '@deepseek-ai/dsh-llm-pi-ai'
+import ModelsDevCatalog from '@deepseek-ai/dsh-llm-models-dev'
 import { assemble } from './assemble.ts'
 import { closeMockServers, mockServer, textEvents } from './mock-server.ts'
 
@@ -38,8 +39,11 @@ afterEach(async () => {
 })
 
 /** Boot the dormant composition: a bare `llm-pi-ai` row with no config at all. */
-async function loadComposition(): Promise<{ ctx: Context; settingsPath: string }> {
+async function loadComposition(extraRows: readonly string[] = []): Promise<{ ctx: Context; settingsPath: string }> {
   root = await mkdtemp(join(tmpdir(), 'dsh-pi-composition-'))
+  // The catalog service keeps its catalog in the harness home, so the
+  // composition reads and writes the one this case owns.
+  vi.stubEnv('DSH_HOME', root)
   await writeFile(join(root, '.credentials.yaml'), 'version: 1\nrefs:\n  PI_COMPOSITION_KEY: key-from-store\n', { mode: 0o600 })
 
   const configPath = join(root, 'cordis.yml')
@@ -55,6 +59,7 @@ async function loadComposition(): Promise<{ ctx: Context; settingsPath: string }
     "  name: '@deepseek-ai/dsh-authorization'",
     '- id: llm-pi-ai',
     "  name: '@deepseek-ai/dsh-llm-pi-ai'",
+    ...extraRows,
     '',
   ].join('\n'))
 
@@ -68,6 +73,7 @@ async function loadComposition(): Promise<{ ctx: Context; settingsPath: string }
     ['@deepseek-ai/dsh-credentials-local', LocalCredentialProvider],
     ['@deepseek-ai/dsh-authorization', AuthorizationService],
     ['@deepseek-ai/dsh-llm-pi-ai', LlmPiAi],
+    ['@deepseek-ai/dsh-llm-models-dev', ModelsDevCatalog],
   ])
   const internal: ModuleLoaderV2 = {
     version: 'v2',
@@ -121,8 +127,187 @@ describe('llm-pi-ai real dormant composition', () => {
     expect(server.headers[0]?.authorization).toBe('Bearer key-from-store')
   })
 
-  it('offers OpenAI sign-in by API key only, while other subscription logins stay', async () => {
-    const { ctx } = await loadComposition()
+  it('serves a route the models.dev catalog describes', async () => {
+    vi.stubEnv('PI_COMPOSITION_KEY', '')
+    const catalog = await mockServer([{ body: JSON.stringify({
+      'minimax-cn': {
+        id: 'minimax-cn',
+        name: 'MiniMax (minimax.cn)',
+        npm: '@ai-sdk/anthropic',
+        api: 'https://api.minimax.cn/anthropic/v1',
+        env: ['MINIMAX_API_KEY'],
+        models: {
+          'MiniMax-M3.1-Flash': {
+            id: 'MiniMax-M3.1-Flash',
+            name: 'MiniMax-M3.1-Flash',
+            reasoning: true,
+            reasoning_options: [{ type: 'effort', values: ['low', 'high'] }],
+            modalities: { input: ['text'] },
+            limit: { context: 1000000, output: 524288 },
+          },
+        },
+      },
+    }) }])
+    const { ctx, settingsPath } = await loadComposition([
+      '- id: llm-models-dev',
+      "  name: '@deepseek-ai/dsh-llm-models-dev'",
+      '  config:',
+      `    url: ${JSON.stringify(`${catalog.url}/api.json`)}`,
+    ])
+
+    await writeFile(settingsPath, [
+      '- id: llm-pi-ai',
+      '  config:',
+      '    providers:',
+      '      minimax-cn:',
+      '        apiKeyEnv: PI_COMPOSITION_KEY',
+      '',
+    ].join('\n'))
+    await vi.waitFor(() => {
+      expect(ctx.llm.listProviders().map(provider => provider.id)).toEqual(['minimax-cn'])
+    }, { timeout: 5000 })
+
+    const models = await ctx.llm.listModels('minimax-cn')
+    expect(models.map(model => model.id)).toEqual(['MiniMax-M3.1-Flash'])
+    expect(catalog.paths).toEqual(['/api.json'])
+
+    // The configuration surface's own answer is the catalog's, not the route's
+    // configured models: the surface is editing those.
+    const discovered = await ctx.llm.discoverModels('llm-pi-ai', { provider: 'minimax-cn' })
+    expect(discovered.map(model => model.id)).toEqual(['MiniMax-M3.1-Flash'])
+    expect(discovered[0]?.contextWindow).toBe(1000000)
+    expect(discovered[0]?.maxTokens).toBe(524288)
+  })
+
+  it('offers the providers the models.dev catalog describes to configuration surfaces', async () => {
+    const catalog = await mockServer([{ body: JSON.stringify({
+      'acme-cloud': {
+        id: 'acme-cloud',
+        name: 'Acme Cloud',
+        npm: '@ai-sdk/openai-compatible',
+        api: 'https://api.acme.example/v1',
+        env: ['ACME_API_KEY'],
+        models: {
+          'acme-large': {
+            id: 'acme-large',
+            name: 'Acme Large',
+            modalities: { input: ['text'] },
+            limit: { context: 128000, output: 8192 },
+          },
+        },
+      },
+      'acme-unservable': {
+        id: 'acme-unservable',
+        name: 'Acme Unservable',
+        npm: '@ai-sdk/google',
+        api: 'https://generativelanguage.acme.example',
+        env: ['ACME_GOOGLE_API_KEY'],
+        models: {
+          'acme-gemini': {
+            id: 'acme-gemini',
+            name: 'Acme Gemini',
+            modalities: { input: ['text'] },
+            limit: { context: 1000000, output: 8192 },
+          },
+        },
+      },
+      'acme-tenant': {
+        id: 'acme-tenant',
+        name: 'Acme Tenant',
+        npm: '@ai-sdk/openai-compatible',
+        api: 'https://${ACCOUNT}.acme.example/v1',
+        env: ['ACME_API_KEY'],
+        models: {
+          'acme-tenant-large': {
+            id: 'acme-tenant-large',
+            name: 'Acme Tenant Large',
+            modalities: { input: ['text'] },
+            limit: { context: 128000, output: 8192 },
+          },
+        },
+      },
+    }) }])
+    const { ctx } = await loadComposition([
+      '- id: llm-models-dev',
+      "  name: '@deepseek-ai/dsh-llm-models-dev'",
+      '  config:',
+      `    url: ${JSON.stringify(`${catalog.url}/api.json`)}`,
+    ])
+
+    await vi.waitFor(() => {
+      expect(ctx.llm.listConfigurableProviders().map(entry => entry.provider)).toContain('acme-cloud')
+    }, { timeout: 5000 })
+
+    // The provider a configuration surface offers: its route key, the endpoint
+    // its requests go to, the protocol its models speak, the environment its
+    // credential is read from, and the fact that the adapter knows it.
+    expect(ctx.llm.listConfigurableProviders().find(entry => entry.provider === 'acme-cloud')).toMatchObject({
+      displayName: 'acme-cloud',
+      declared: false,
+      defaultBaseURL: 'https://api.acme.example/v1',
+      defaultApi: 'openai-completions',
+      nativeAuth: { env: ['ACME_API_KEY'], oauth: false },
+      settingsPath: ['providers', 'acme-cloud'],
+    })
+    // A provider whose AI SDK package names a protocol this build cannot
+    // construct is not offered: a route may still be declared by hand.
+    expect(ctx.llm.listConfigurableProviders().map(entry => entry.provider)).not.toContain('acme-unservable')
+    // A provider whose endpoint is a deployment placeholder states none: the
+    // route's own `baseURL` is the only answer it has.
+    expect(ctx.llm.listConfigurableProviders().find(entry => entry.provider === 'acme-tenant')?.defaultBaseURL)
+      .toBeUndefined()
+  })
+
+  it('keeps a route the catalog describes first class once a profile names it', async () => {
+    vi.stubEnv('PI_COMPOSITION_KEY', '')
+    const catalog = await mockServer([{ body: JSON.stringify({
+      'acme-cloud': {
+        id: 'acme-cloud',
+        name: 'Acme Cloud',
+        npm: '@ai-sdk/openai-compatible',
+        api: 'https://api.acme.example/v1',
+        env: ['ACME_API_KEY'],
+        models: {
+          'acme-large': {
+            id: 'acme-large',
+            name: 'Acme Large',
+            modalities: { input: ['text'] },
+            limit: { context: 128000, output: 8192 },
+          },
+        },
+      },
+    }) }])
+    const { ctx, settingsPath } = await loadComposition([
+      '- id: llm-models-dev',
+      "  name: '@deepseek-ai/dsh-llm-models-dev'",
+      '  config:',
+      `    url: ${JSON.stringify(`${catalog.url}/api.json`)}`,
+    ])
+
+    await writeFile(settingsPath, [
+      '- id: llm-pi-ai',
+      '  config:',
+      '    providers:',
+      '      acme-cloud:',
+      '        apiKeyEnv: PI_COMPOSITION_KEY',
+      '',
+    ].join('\n'))
+    await vi.waitFor(() => {
+      expect(ctx.llm.listProviders().map(provider => provider.id)).toEqual(['acme-cloud'])
+    }, { timeout: 5000 })
+
+    // A profile beside a catalog route changes what the route serves, never
+    // whether the adapter knows it: the route keeps the endpoint, the
+    // protocol, and the credential environment the catalog states.
+    expect(ctx.llm.listConfigurableProviders().find(entry => entry.provider === 'acme-cloud')).toMatchObject({
+      declared: false,
+      defaultBaseURL: 'https://api.acme.example/v1',
+      defaultApi: 'openai-completions',
+      nativeAuth: { env: ['ACME_API_KEY'], oauth: false },
+    })
+  })
+
+  it('offers OpenAI sign-in by API key only, while other subscription logins stay', async () => {    const { ctx } = await loadComposition()
     const methods = (provider: string): string[] | undefined => ctx.authorization.list()
       .find(entry => entry.key === LlmPiAi.recordKeyFor(provider))?.methods.map(method => method.id)
 

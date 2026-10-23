@@ -264,6 +264,14 @@ const SERVICE_ROLES: ServiceRole[] = [
     note: 'Owns isolated per-session replay folds; pressure consumers share immutable revisioned measurements.',
   },
   {
+    key: 'llmModelsDev',
+    pkg: 'llm-models-dev',
+    title: 'models.dev model catalog',
+    mode: 'core',
+    consumers: ['llm-pi-ai'],
+    note: 'Fetches the public models.dev catalog on a schedule; the pi-ai adapter reads the models a route serves from it.',
+  },
+  {
     key: 'toolResultPruner',
     pkg: 'compaction-tool-result-pruner',
     title: 'Model-free tool-result pruning',

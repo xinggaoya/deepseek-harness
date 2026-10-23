@@ -14,7 +14,7 @@
  */
 import type { Volatile } from '@deepseek-ai/cordis'
 
-import type { CacheRetention, ChatTemplateKwargValue, ModelThinkingLevel, Provider, ThinkingBudgets, Transport } from '@earendil-works/pi-ai'
+import type { Api, CacheRetention, ChatTemplateKwargValue, Model, ModelThinkingLevel, Provider, ThinkingBudgets, Transport } from '@earendil-works/pi-ai'
 import z from '@deepseek-ai/schemastery'
 import { credentialRef } from '@deepseek-ai/dsh-credentials'
 import type { CredentialRef } from '@deepseek-ai/dsh-credentials'
@@ -25,6 +25,7 @@ import { deepEqualJson } from '@deepseek-ai/dsh-util-values'
 import {
   CACHE_CONTROL_FORMATS,
   CHAT_TEMPLATE_VARS,
+  catalogProvider,
   MAX_TOKENS_FIELDS,
   MODALITIES,
   PiAiCatalogError,
@@ -42,6 +43,7 @@ import type {
   RouteCatalog,
 } from './catalog.ts'
 import { buildProvider, supportedProtocols } from './provider.ts'
+import type { RemoteCatalog } from './remote-catalog.ts'
 
 /** Default maximum idle interval while an adapter stream read is outstanding. */
 export const DEFAULT_STREAM_IDLE_TIMEOUT_MS = 300_000
@@ -191,6 +193,12 @@ export interface ResolvedPiAiProviderProfile
   displayName: string
   /** Validated credential reference, when one is configured. */
   apiKeyEnv?: CredentialRef
+  /**
+   * Environment variables the provider's own credential is read from, when a
+   * catalog source names them. A route whose profile names no reference
+   * authenticates from them, the way an installed catalog provider does.
+   */
+  nativeEnv?: readonly string[]
   /** Positive finite provider-idle interval after defaulting. */
   streamIdleTimeoutMs: number
   /** Positive request-level base64 image payload bound after defaulting. */
@@ -354,17 +362,53 @@ export const Config = z.object({
 })
 
 /**
+ * The catalog source a route may draw its models from, by provider route key.
+ *
+ * A route with no source serves the installed pi-ai catalog unchanged; a route
+ * whose source answers draws the models that source describes.
+ */
+export type RemoteCatalogLookup = (provider: string) => RemoteCatalog | undefined
+
+/**
+ * The wire protocol one route's provider is constructed with, when it needs
+ * one named.
+ *
+ * A route pi-ai's catalog ships keeps that provider's own protocol, so the
+ * catalog entry stays authoritative. A route no catalog ships — one a
+ * catalog source describes — needs the protocol its models agree on named,
+ * because the adapter constructs the provider itself.
+ * @param provider - provider route key.
+ * @param source - the route's configured profile.
+ * @param models - the route's materialized models.
+ * @returns the protocol to construct the route's provider with, or nothing.
+ */
+function routeApiOf(
+  provider: string,
+  source: PiAiProviderProfile,
+  models: readonly Model<Api>[],
+): string | undefined {
+  if (source.api !== undefined) return source.api
+  // A route pi-ai's catalog ships keeps that provider's own protocol, so the
+  // catalog entry stays authoritative.
+  if (catalogProvider(provider) !== undefined) return undefined
+  // A route no catalog ships takes the protocol its first model speaks: the
+  // catalog source gives every model of such a route the same one.
+  return models[0]?.api
+}
+
+/**
  * Reject new or changed provider profiles that cannot be served. Unchanged
  * stored profiles may need repair after a catalog upgrade and do not block
  * edits to another provider. Removed profiles require no catalog validation.
  * @param config - the resolved section to check.
  * @param previous - current resolved section; omission checks every provider.
+ * @param remote - the catalog source each route may draw its models from.
  * @throws Error naming the route and configuration entry that cannot be served.
  */
-export function assertServiceable(config: Options, previous?: Options): void {
+export function assertServiceable(config: Options, previous?: Options, remote?: RemoteCatalogLookup): void {
   const changed = Object.fromEntries(Object.entries(config.providers ?? {}).filter(([provider, profile]) =>
     !deepEqualJson(profile, previous?.providers?.[provider])))
-  resolveProfiles(changed)
+  resolveProfiles(changed, 'strict', remote)
 }
 
 /** Reject removed pre-release profile fields and name their replacements. */
@@ -405,11 +449,13 @@ function assertValidHeaders(provider: string, headers: Readonly<Record<string, s
  * routes. An omitted dict resolves to the empty, dormant route set.
  * @param providers - configured provider profiles keyed by route.
  * @param validation - writes require a complete catalog; stored reads retain catalog diagnostics.
+ * @param remote - the catalog source each route may draw its models from.
  * @returns validated profiles in configuration order.
  */
 export function resolveProfiles(
   providers: Readonly<Record<string, PiAiProviderProfile>> | undefined,
   validation: 'strict' | 'deferred' = 'strict',
+  remote?: RemoteCatalogLookup,
 ): Map<string, ResolvedPiAiProviderProfile> {
   if (Array.isArray(providers)) {
     throw new Error('llm-pi-ai: providers is now a dict keyed by provider route, not an array of profiles')
@@ -459,6 +505,10 @@ export function resolveProfiles(
     // always shown route keys, and a catalog route must not silently rename
     // itself on every configuration surface just because it gained a profile.
     const displayName = source.displayName ?? provider
+    // The catalog source this route may draw its models from, when one answers
+    // for it. A route the source does not describe serves the installed
+    // catalog unchanged.
+    const remoteCatalog = remote?.(provider)
     let catalog: RouteCatalog | undefined
     let piProvider: Provider | undefined
     let catalogError: string | undefined
@@ -470,18 +520,23 @@ export function resolveProfiles(
         ...source.models === undefined ? {} : { models: source.models },
         ...source.modelOverrides === undefined ? {} : { modelOverrides: source.modelOverrides },
         ...source.compat === undefined ? {} : { compat: source.compat },
+        ...remoteCatalog === undefined ? {} : { remote: remoteCatalog },
         defaultInput,
         defaultContextWindow: source.defaultContextWindow ?? DEFAULT_CONTEXT_WINDOW,
         defaultMaxTokens: source.defaultMaxTokens ?? DEFAULT_MAX_TOKENS,
       }, validation)
       catalogError = catalog.modelErrors.values().next().value
+      const routeApi = routeApiOf(provider, source, catalog.models)
       piProvider = buildProvider({
         provider,
         displayName,
-        ...source.api === undefined ? {} : { api: source.api },
+        ...routeApi === undefined ? {} : { api: routeApi },
         ...source.baseURL === undefined ? {} : { baseURL: source.baseURL },
         models: catalog.models,
         namesCredential: source.apiKeyEnv !== undefined,
+        // The provider's own credential environment, for a route whose profile
+        // names no reference.
+        ...remoteCatalog?.env === undefined ? {} : { nativeEnv: remoteCatalog.env },
       })
     } catch (error) {
       if (validation === 'strict' || !(error instanceof PiAiCatalogError)) throw error
@@ -493,6 +548,9 @@ export function resolveProfiles(
       provider,
       displayName,
       ...apiKeyEnv === undefined ? {} : { apiKeyEnv: credentialRef(apiKeyEnv) },
+      ...remoteCatalog?.env === undefined || remoteCatalog.env.length === 0
+        ? {}
+        : { nativeEnv: [...remoteCatalog.env] },
       streamIdleTimeoutMs,
       maxRequestImageBytes,
       requestImagePixelBudget,

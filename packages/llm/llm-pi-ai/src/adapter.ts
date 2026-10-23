@@ -113,6 +113,15 @@ export interface PiAiAdapterOptions {
    * conversion because its stored replay state is unusable by this build.
    */
   onReplayDegrade?: (detail: { provider: string; model: string; reason: string }) => void
+  /**
+   * Wait for the catalog a route's models come from, when one does.
+   *
+   * A route that draws its models from a catalog outside the installed
+   * registry does not know its models until that catalog reports them, so an
+   * operation that names one waits for the first attempt rather than
+   * reporting an unknown model the catalog would have supplied.
+   */
+  awaitCatalog?: () => Promise<void>
 }
 
 /** The two auth injectables a pi-ai collection is built with. */
@@ -294,6 +303,7 @@ export class PiAiAdapter extends LlmAdapter {
 
   override listModels(provider: string): Promise<readonly LlmModelInfo[]> {
     return Promise.resolve().then(async () => {
+      await this.config.awaitCatalog?.()
       const snapshot = this.current()
       const profile = this.profileOf(snapshot, provider)
       try { await this.config.resolveApiKey(provider, profile) }
@@ -316,7 +326,8 @@ export class PiAiAdapter extends LlmAdapter {
     model: string,
     _signal?: AbortSignal,
   ): Promise<LlmResolvedModelInfo> {
-    return Promise.resolve().then(() => {
+    return Promise.resolve().then(async () => {
+      await this.config.awaitCatalog?.()
       const snapshot = this.current()
       return this.modelInfo(snapshot, provider, model)
     })
@@ -342,10 +353,13 @@ export class PiAiAdapter extends LlmAdapter {
   }
 
   override prepareCall(provider: string, model: string, _signal?: AbortSignal): Promise<PreparedAdapterCall> {
-    const snapshot = this.current()
-    return Promise.resolve({
-      model: this.modelInfo(snapshot, provider, model),
-      stream: options => this.streamWithSnapshot(options, snapshot),
+    return Promise.resolve().then(async () => {
+      await this.config.awaitCatalog?.()
+      const snapshot = this.current()
+      return {
+        model: this.modelInfo(snapshot, provider, model),
+        stream: options => this.streamWithSnapshot(options, snapshot),
+      }
     })
   }
 

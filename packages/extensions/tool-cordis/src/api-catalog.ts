@@ -1453,6 +1453,24 @@ export const SERVICE_API: readonly ServiceApiEntry[] = [
         returns: 'detached directory entries in declaration order.',
       },
       {
+        signature: 'registerCatalogSource(source: LlmCatalogSource): () => void',
+        description: 'Register a catalog the provider routes\' models can be drawn from.\n\nA catalog source owns its own fetch; registering it here lets a configuration surface ask whether one is there to re-read and ask for the re-read itself. Disposed with the fiber.',
+        parameters: [{ name: 'source', description: 'the catalog source this registration owns.' }],
+        returns: 'the disposer that withdraws the source.',
+      },
+      {
+        signature: '@Remote catalogState(): LlmCatalogState',
+        description: 'The catalog behind the provider routes.\n\nA configuration surface uses this to decide whether it offers to re-read a catalog.',
+        parameters: [],
+        returns: 'the catalog state the registered sources report; no re-readable catalog reports none.',
+      },
+      {
+        signature: '@Remote async refreshCatalog(): Promise<void>',
+        description: 'Re-read the catalog behind the provider routes.\n\nEvery source is asked, so one source\'s failure does not leave another\'s catalog stale; the first failure is the one reported.',
+        parameters: [],
+        returns: 'a promise that settles once every source has re-read its catalog, or rejects with the first failure.',
+      },
+      {
         signature: 'registerModelDiscovery( settingsNs: string, discover: ( request: LlmModelDiscoveryRequest, signal?: AbortSignal, ) => Promise<readonly LlmDiscoveredModel[]>, ): () => void',
         description: 'Offer to interrogate provider endpoints on behalf of the settings namespace this plugin owns. The namespace is the key because that is what a configuration surface already holds from the configurable-provider directory, and because a provider being *added* has no route to name yet. Disposed with the fiber.',
         parameters: [{ name: 'settingsNs', description: 'the namespace whose profiles this discovery serves.' }, { name: 'discover', description: 'interrogates one endpoint and must honor the supplied signal.' }],
@@ -1524,6 +1542,38 @@ export const SERVICE_API: readonly ServiceApiEntry[] = [
         description: 'Stream one model call as raw chunks (token-level deltas). Replay state is retained only when the same adapter instance owns its historical provider and the target provider. Final adapter selection remains fixed through asynchronous exact-model resolution and dispatch. Adapter selection, dispatch, and iteration failures become terminal `error` or `aborted` finish chunks; middleware, nested-call, cleanup, and consumer failures remain thrown.',
         parameters: [{ name: 'options', description: 'the full request; `options.provider` selects the adapter.' }],
         returns: 'the chunk stream, possibly wrapped by `llm/stream` listeners.',
+      },
+    ],
+  },
+  {
+    key: 'llmModelsDev',
+    summary: 'The models.dev catalog, fetched on a schedule and read by identity.',
+    description: 'The models.dev catalog, fetched on a schedule and read by identity.',
+    methods: [
+      {
+        signature: 'ready(): Promise<void>',
+        description: 'Settles when the service has a catalog to serve.\n\nA composition that restored the cached catalog answers at once; one with no cache waits for the first attempt, whether it succeeded or not, so a consumer reads what the service has rather than an empty catalog.',
+        parameters: [],
+        returns: 'a promise that settles once a catalog is available.',
+      },
+      {
+        signature: 'snapshot(): ModelsDevSnapshot | undefined',
+        description: 'The catalog as last fetched.',
+        parameters: [],
+        returns: 'the current catalog, or `undefined` before the first successful fetch.',
+      },
+      {
+        signature: 'provider(id: string): ModelsDevProviderFacts | undefined',
+        description: 'One provider\'s facts from the current catalog.',
+        parameters: [{ name: 'id', description: 'the provider\'s models.dev id.' }],
+        returns: 'the provider\'s facts, or `undefined` when the catalog does not carry it.',
+      },
+      {
+        signature: 'async refresh(): Promise<ModelsDevSnapshot>',
+        description: 'Fetch the catalog now and replace the current one.\n\nA failed fetch rejects, leaving the previous catalog in place; the scheduled refresh reports its own failures and keeps going.',
+        parameters: [],
+        returns: 'the catalog that was fetched.',
+        throws: ['Error when the endpoint is unreachable or does not answer a catalog.'],
       },
     ],
   },
@@ -4374,6 +4424,14 @@ export const EVENT_API: readonly EventApiEntry[] = [
     parameters: [{ name: 'options', description: 'the full request. A LOOP-built request carries the process-local {@link markAgentLoopRequest} identity and arrives deep-frozen (mutation throws): its content is a pure function of the session log (the reconstructability Agent Note), so listeners read it, never rewrite it. Hand-built calls do not carry that marker; callers own their request inputs and must keep them unchanged until the stream settles.' }],
   },
   {
+    name: 'llmModelsDev/refresh',
+    mode: 'emit',
+    signature: '\'llmModelsDev/refresh\'(): void',
+    summary: 'The models.dev catalog was replaced by a newly available one.',
+    description: 'The models.dev catalog was replaced by a newly available one.\n\nConsumers that project the catalog into a configuration surface re-read the service\'s current snapshot when this fires; the event carries no payload because the service owns the current one. Observer failures are contained and cannot veto the replacement.',
+    parameters: [],
+  },
+  {
     name: 'permission-presets/catalog-changed',
     mode: 'emit',
     signature: '\'permission-presets/catalog-changed\'(): void',
@@ -5918,8 +5976,16 @@ export const TYPE_API: readonly TypeApiEntry[] = [
     declaration: 'export interface LlmCallControls {\n    reasoningEffort?: ReasoningEffortId;\n    temperature?: number;\n    maxTokens?: number;\n    stop?: string[];\n}',
   },
   {
+    name: 'LlmCatalogSource',
+    declaration: 'export interface LlmCatalogSource {\n    catalogState(): LlmCatalogState;\n    refreshCatalog(): Promise<void>;\n}',
+  },
+  {
+    name: 'LlmCatalogState',
+    declaration: 'export interface LlmCatalogState {\n    readonly refreshable: boolean;\n}',
+  },
+  {
     name: 'LlmConfigurableProvider',
-    declaration: 'export interface LlmConfigurableProvider {\n    provider: string;\n    displayName: string;\n    settingsNs: string;\n    settingsPath: readonly string[];\n    declared?: boolean;\n    defaultBaseURL?: string;\n    baseURLEnv?: readonly string[];\n    nativeAuth?: LlmNativeAuth;\n    error?: string;\n}',
+    declaration: 'export interface LlmConfigurableProvider {\n    provider: string;\n    displayName: string;\n    settingsNs: string;\n    settingsPath: readonly string[];\n    declared?: boolean;\n    defaultBaseURL?: string;\n    defaultApi?: string;\n    baseURLEnv?: readonly string[];\n    nativeAuth?: LlmNativeAuth;\n    error?: string;\n}',
   },
   {
     name: 'LlmDiscoveredModel',
@@ -5971,7 +6037,7 @@ export const TYPE_API: readonly TypeApiEntry[] = [
   },
   {
     name: 'LlmRuntime',
-    declaration: 'export class LlmRuntime extends TypertRemoteService {\n    constructor(ctx: Context);\n    registerAdapter(providers: string[], adapter: LlmAdapter): AdapterRegistrationHandle;\n    @Remote\n    listProviders(): LlmProviderInfo[];\n    registerConfigurableProviders(entries: readonly LlmConfigurableProvider[]): DirectoryRegistrationHandle;\n    @Remote\n    listConfigurableProviders(): LlmConfigurableProvider[];\n    registerModelDiscovery(settingsNs: string, discover: (request: LlmModelDiscoveryRequest, signal?: AbortSignal) => Promise<readonly LlmDiscoveredModel[]>): () => void;\n    async discoverModels(settingsNs: string, request: LlmModelDiscoveryRequest, signal?: AbortSignal): Promise<LlmDiscoveredModel[]>;\n    @Remote(\'discoverModels\')\n    async remoteDiscoverModels(settingsNs: string, request: LlmModelDiscoveryRequest, signal: AbortSignal): Promise<LlmDiscoveredModel[]>;\n    providerRetryPolicy(provider: string): ResolvedRetryPolicy;\n    imageRequestPricing(provider: string, model: string): LlmImageRequestPricing | undefined;\n    imageRequestTarget(provider: string, model: string, image: ImageAttachmentRef): ImageRequestTarget;\n    fileRequestText(ref: FileAttachmentRef): string;\n    async listModels(provider: string): Promise<LlmModelInfo[]>;\n    async resolveModelInfo(provider: string, model: string, signal?: AbortSignal): Promise<LlmResolvedModelInfo>;\n    async resolveCallConfig(config: LlmCallConfig, signal?: AbortSignal): Promise<LlmCallConfig>;\n    async prepareCall(conf /* …truncated — full shape in source */',
+    declaration: 'export class LlmRuntime extends TypertRemoteService {\n    constructor(ctx: Context);\n    registerAdapter(providers: string[], adapter: LlmAdapter): AdapterRegistrationHandle;\n    @Remote\n    listProviders(): LlmProviderInfo[];\n    registerConfigurableProviders(entries: readonly LlmConfigurableProvider[]): DirectoryRegistrationHandle;\n    @Remote\n    listConfigurableProviders(): LlmConfigurableProvider[];\n    registerCatalogSource(source: LlmCatalogSource): () => void;\n    @Remote\n    catalogState(): LlmCatalogState;\n    @Remote\n    async refreshCatalog(): Promise<void>;\n    registerModelDiscovery(settingsNs: string, discover: (request: LlmModelDiscoveryRequest, signal?: AbortSignal) => Promise<readonly LlmDiscoveredModel[]>): () => void;\n    async discoverModels(settingsNs: string, request: LlmModelDiscoveryRequest, signal?: AbortSignal): Promise<LlmDiscoveredModel[]>;\n    @Remote(\'discoverModels\')\n    async remoteDiscoverModels(settingsNs: string, request: LlmModelDiscoveryRequest, signal: AbortSignal): Promise<LlmDiscoveredModel[]>;\n    providerRetryPolicy(provider: string): ResolvedRetryPolicy;\n    imageRequestPricing(provider: string, model: string): LlmImageRequestPricing | undefined;\n    imageRequestTarget(provider: string, model: string, image: ImageAttachmentRef): ImageRequestTarget;\n    fileRequestText(ref: FileAttachmentRef): string;\n    async listModels(provider: string): Promise<LlmModelInfo[]>;\n    async resolveModelInfo(provider: string, model: string, signal?:  /* …truncated — full shape in source */',
   },
   {
     name: 'LocalAtInput',
@@ -6252,6 +6318,30 @@ export const TYPE_API: readonly TypeApiEntry[] = [
   {
     name: 'ModelReasoningEffort',
     declaration: 'export interface ModelReasoningEffort {\n    readonly id: string;\n    readonly name: string;\n    readonly description?: string;\n}',
+  },
+  {
+    name: 'ModelsDevEffortValue',
+    declaration: 'export type ModelsDevEffortValue = \'none\' | \'minimal\' | \'low\' | \'medium\' | \'high\' | \'xhigh\' | \'max\' | \'default\';',
+  },
+  {
+    name: 'ModelsDevModelFacts',
+    declaration: 'export interface ModelsDevModelFacts {\n    readonly id: string;\n    readonly name: string;\n    readonly description?: string;\n    readonly kind?: string;\n    readonly status?: ModelsDevModelStatus;\n    readonly reasoning: boolean;\n    readonly reasoningOptions: readonly ModelsDevReasoningOption[];\n    readonly contextWindow?: number;\n    readonly maxTokens?: number;\n    readonly inputModalities: readonly string[];\n}',
+  },
+  {
+    name: 'ModelsDevModelStatus',
+    declaration: 'export type ModelsDevModelStatus = \'alpha\' | \'beta\' | \'deprecated\';',
+  },
+  {
+    name: 'ModelsDevProviderFacts',
+    declaration: 'export interface ModelsDevProviderFacts {\n    readonly id: string;\n    readonly name: string;\n    readonly npm: string;\n    readonly api?: string;\n    readonly env: readonly string[];\n    readonly doc?: string;\n    readonly models: readonly ModelsDevModelFacts[];\n}',
+  },
+  {
+    name: 'ModelsDevReasoningOption',
+    declaration: 'export type ModelsDevReasoningOption = {\n    readonly type: \'toggle\';\n} | {\n    readonly type: \'effort\';\n    readonly values: readonly ModelsDevEffortValue[];\n} | {\n    readonly type: \'budget_tokens\';\n    readonly min?: number;\n    readonly max?: number;\n};',
+  },
+  {
+    name: 'ModelsDevSnapshot',
+    declaration: 'export interface ModelsDevSnapshot {\n    readonly fetchedAt: number;\n    readonly providers: ReadonlyMap<string, ModelsDevProviderFacts>;\n    readonly skippedProviders: number;\n    readonly skippedModels: number;\n}',
   },
   {
     name: 'ModEvents',

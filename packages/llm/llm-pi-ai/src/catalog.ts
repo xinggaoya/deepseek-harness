@@ -22,36 +22,29 @@ import type {
   KnownApi,
   MistralConversationsCompat,
   Model,
-  ModelCost,
   ModelThinkingLevel,
   OpenAICompletionsCompat,
   OpenAIResponsesCompat,
   Provider,
   ThinkingLevelMap,
 } from '@earendil-works/pi-ai'
+import { NO_COST, THINKING_LEVELS } from './catalog-vocabulary.ts'
+import type { PiAiModality } from './catalog-vocabulary.ts'
+import { mergeRemoteCatalog } from './remote-catalog.ts'
+import type { RemoteCatalog } from './remote-catalog.ts'
 
 /**
  * Pricing for a model the installed catalog does not describe. The harness
  * never reads pi-ai's cost metadata — `replay.ts` zeroes it and no consumer
  * reports spend — so this is the absence of a fact, not a configurable rate.
  */
-const NO_COST: ModelCost = { input: 0, output: 0, cacheRead: 0, cacheWrite: 0 }
+export { NO_COST } from './catalog-vocabulary.ts'
 
 /** One request modality a pi-ai model may accept. */
-export type PiAiModality = Model<Api>['input'][number]
-
-/**
- * Every pi-ai request modality. The `Record` key type is a drift gate: a pi-ai
- * upgrade that adds or removes a modality fails compilation here naming the
- * drifted key, instead of silently narrowing what a profile may declare.
- */
-const MODALITY_GATE: Record<PiAiModality, true> = {
-  text: true,
-  image: true,
-}
+export type { PiAiModality } from './catalog-vocabulary.ts'
 
 /** Every request modality a profile may declare. */
-export const MODALITIES = Object.keys(MODALITY_GATE) as readonly PiAiModality[]
+export { MODALITIES } from './catalog-vocabulary.ts'
 
 /**
  * One entry's modality list, or `undefined` when it states no answer. Absent
@@ -66,24 +59,9 @@ function declaredInput(configured: readonly PiAiModality[] | undefined): Model<A
   return configured === undefined || configured.length === 0 ? undefined : [...configured]
 }
 
-/**
- * Every pi-ai thinking level, in pi-ai's canonical escalation order. The
- * `Record` key type is a drift gate: a pi-ai upgrade that adds or removes a
- * level fails compilation here naming the drifted key, instead of silently
- * narrowing what a profile may declare.
- */
-const THINKING_LEVEL_GATE: Record<ModelThinkingLevel, true> = {
-  off: true,
-  minimal: true,
-  low: true,
-  medium: true,
-  high: true,
-  xhigh: true,
-  max: true,
-}
-
 /** Every pi-ai thinking level a profile may declare, in escalation order. */
-export const THINKING_LEVELS = Object.keys(THINKING_LEVEL_GATE) as readonly ModelThinkingLevel[]
+export { THINKING_LEVELS } from './catalog-vocabulary.ts'
+
 
 /** One reasoning-dispatch wire format a profile may name. */
 export type PiAiThinkingFormat = NonNullable<OpenAICompletionsCompat['thinkingFormat']>
@@ -661,6 +639,14 @@ export interface RouteCatalogRequest {
   modelOverrides?: Readonly<Record<string, PiAiModelOverride>>
   /** Route-level wire-compatibility switches, landing on each model whose protocol declares them; entries override per field. */
   compat?: PiAiCompatProfile
+  /**
+   * A catalog source outside the installed pi-ai registry, for this route.
+   *
+   * The source decides which models the route serves and what each model can
+   * do; the installed registry still decides how to talk to a model it
+   * describes. A route with no source serves the installed catalog unchanged.
+   */
+  remote?: RemoteCatalog
   /** Context capacity for a model neither the entry nor the catalog sizes. */
   defaultContextWindow: number
   /** Output capability for a model neither the entry nor the catalog sizes. */
@@ -859,8 +845,24 @@ export function resolveRouteModels(
   validation: 'strict' | 'deferred' = 'strict',
 ): RouteCatalog {
   const { provider } = request
-  const defaults = catalogModels(provider)
+  const installed = catalogModels(provider)
   const providerBaseUrl = catalogProvider(provider)?.baseUrl
+  // A source outside the installed registry decides which models the route
+  // serves; the installed entries still say how to talk to the models both
+  // describe.
+  const defaults = request.remote === undefined
+    ? installed
+    : mergeRemoteCatalog(provider, request.remote, installed, {
+      ...request.api === undefined ? {} : { api: request.api },
+      ...request.baseURL === undefined ? {} : { baseUrl: request.baseURL },
+      ...providerBaseUrl === undefined ? {} : { providerBaseUrl },
+      defaultContextWindow: request.defaultContextWindow,
+      defaultMaxTokens: request.defaultMaxTokens,
+    })
+  // The catalog the route serves: the installed registry, or a source outside
+  // it. A diagnostic about a model the route cannot serve names the one that
+  // decided the route's models.
+  const catalogName = request.remote === undefined ? 'the installed catalog' : 'the catalog source'
   // An absent `models` key and an empty one are the same request: the config
   // schema materializes `[]` for the absent case, and an empty catalog could
   // serve no request anyway, so both mean "serve the installed catalog".
@@ -872,7 +874,7 @@ export function resolveRouteModels(
   for (const [id, override] of Object.entries(overrides)) {
     if (id.length === 0) invalid(provider, 'has a modelOverrides entry with an empty model id')
     if (defaults.size === 0) {
-      invalid(provider, `sets modelOverrides for "${id}", but the installed catalog does not describe this route;`
+      invalid(provider, `sets modelOverrides for "${id}", but ${catalogName} does not describe this route;`
         + ' a declared route spells every model out in its models list')
     }
     if (configured.length > 0) {
@@ -880,7 +882,7 @@ export function resolveRouteModels(
         + ' catalog, so declare the fields on its entries')
     }
     if (!defaults.has(id)) {
-      const message = `modelOverrides names "${id}", which the installed catalog does not describe`
+      const message = `modelOverrides names "${id}", which ${catalogName} does not describe`
       if (validation === 'strict') invalid(provider, message)
       modelErrors.set(id, `llm-pi-ai: provider "${provider}" ${message}`)
     }
@@ -898,8 +900,11 @@ export function resolveRouteModels(
     ? configured
     : [...defaults.values()].map(model => ({ id: model.id, ...overrides[model.id] }))
   if (entries.length === 0) {
-    invalid(provider, 'resolves no models; the installed catalog does not describe this route, so its models'
-      + ' must be listed in configuration')
+    invalid(provider, request.remote === undefined
+      ? 'resolves no models; the installed catalog does not describe this route, so its models'
+        + ' must be listed in configuration'
+      : 'resolves no models; the catalog source describes no model this route can reach, so its protocol'
+        + ' and endpoint must be stated in configuration')
   }
   const routeApi = sharedCatalogApi(defaults)
   // Vocabulary before protocols: a withheld or undeclared switch is refused

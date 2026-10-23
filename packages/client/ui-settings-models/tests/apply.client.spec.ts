@@ -43,6 +43,8 @@ async function bench(mock = RemoteMock.create().load(remoteDefaultResponses), se
     llm: {
       listProviders: vi.fn(() => Promise.resolve({ ok: true, value: [] })),
       listConfigurableProviders: vi.fn(() => Promise.resolve({ ok: true, value: [] })),
+      catalogState: vi.fn(() => Promise.resolve({ ok: true, value: { refreshable: false } })),
+      refreshCatalog: vi.fn(() => Promise.resolve({ ok: true, value: undefined })),
       discoverModels: vi.fn(() => Promise.resolve({ ok: true, value: [] })),
       ...services,
     },

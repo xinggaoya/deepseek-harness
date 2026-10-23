@@ -269,6 +269,15 @@ export interface LlmConfigurableProvider {
    * Absent when the route has no fixed endpoint.
    */
   defaultBaseURL?: string
+  /**
+   * Wire protocol the route's models speak when the profile names no `api`;
+   * the protocol counterpart of {@link defaultBaseURL}. A route the owning
+   * adapter serves from a catalog of its own takes that catalog's protocol,
+   * which the adapter states here so a configuration surface can show what
+   * was selected instead of asking for it. Absent when the route states no
+   * protocol — a hand-declared route, whose models each carry their own.
+   */
+  defaultApi?: string
   /** Environment variables used to construct a provider endpoint; absent when none are reported. */
   baseURLEnv?: readonly string[]
   /** Authentication the adapter performs when the profile names no credential reference; absent when it reports none. */
@@ -283,6 +292,37 @@ export interface LlmNativeAuth {
   env: readonly string[]
   /** Whether a stored OAuth sign-in can authenticate the route. */
   oauth: boolean
+}
+
+/**
+ * The catalog the provider routes' models come from, as far as the adapters
+ * report it.
+ *
+ * A route may draw its models from a catalog the harness fetches (a public
+ * provider catalog) rather than from the one its adapter ships. A
+ * configuration surface offers to re-read such a catalog, so it needs to know
+ * whether one is there to re-read.
+ */
+export interface LlmCatalogState {
+  /** Whether a catalog can be re-read on demand. */
+  readonly refreshable: boolean
+}
+
+/**
+ * A catalog the provider routes' models can be drawn from.
+ *
+ * A catalog source owns its own fetch and reports whether it can be re-read;
+ * the LLM service only holds the sources a composition registered with it.
+ */
+export interface LlmCatalogSource {
+  /** The catalog's state, as far as this source reports it. */
+  catalogState(): LlmCatalogState
+  /**
+   * Re-read the catalog.
+   * @returns a promise that settles once the catalog has been re-read.
+   * @throws the source's own failure when the catalog could not be re-read.
+   */
+  refreshCatalog(): Promise<void>
 }
 
 /**

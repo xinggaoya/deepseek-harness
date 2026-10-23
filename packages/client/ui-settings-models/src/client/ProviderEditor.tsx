@@ -7,10 +7,12 @@
  * a key is entered; a blank key materializes a reference-free profile for
  * provider-native authentication);
  * the collapsed 自定义设置 area carries the per-family extras (`baseURL` for
- * both families, DeepSeek's id/name/context-window model catalog, and the
- * display name and wire protocol of a pi-ai route the adapter does not ship —
- * the two fields the create card asked that route for, editable here for the
- * same reason).
+ * both families, DeepSeek's id/name/context-window model catalog, the display
+ * name of a pi-ai route the adapter does not ship — the field the create card
+ * asked that route for, editable here for the same reason — and the wire
+ * protocol, which a route the adapter serves from a catalog of its own states
+ * in that catalog, so the card shows the selection that catalog made while a
+ * hand-declared route picks one here).
  * Reasoning effort is deliberately absent: it is a per-MODEL capability, and
  * the models under one provider disagree about it, so a provider-scoped
  * control can only be set to a value some of them reject. The composer's
@@ -59,9 +61,9 @@ export interface ProviderEditorProps {
   /**
    * Whether the adapter reports this route as hand-declared — absent from its
    * installed catalog. Such a route carries its own wire protocol, chosen when
-   * it was created and editable here for the same reason; a catalog route's
-   * models each carry theirs, so a route-level protocol there could only
-   * override every one of them and the card does not offer it.
+   * it was created and editable here for the same reason; a route the adapter
+   * serves from its own catalog states that catalog's protocol, which the
+   * card shows as the selection already made.
    */
   declared?: boolean
   /** The owning namespace view (schema, layers, secrets). */
@@ -74,6 +76,13 @@ export interface ProviderEditorProps {
   operations: ModelsOperations
   /** Endpoint the route uses when its profile sets no `baseURL`; absent when the adapter reports none. */
   defaultBaseURL?: string
+  /**
+   * Wire protocol the route's models speak when the profile names none; absent
+   * when the adapter reports none. A route the adapter serves from a catalog
+   * of its own states its protocol there, so the card shows what was selected
+   * instead of asking for it.
+   */
+  defaultApi?: string
   /** Environment variables used by the provider to construct its endpoint. */
   baseURLEnv?: readonly string[]
   /** Authentication the route performs when its profile names no credential reference; absent when the adapter reports none. */
@@ -248,7 +257,10 @@ export function ProviderEditor(props: ProviderEditorProps): ReactNode {
   const shownKeyFailure = credentialRequiredFailure ?? keyFailure
   // What the form currently shows, which is what an interrogation must ask:
   // an edited-but-unsaved endpoint, and a key typed but not yet stored.
-  const probeApi = stringAt(draft, 'api') ?? stringAt(fallback, 'api')
+  // A route the adapter serves from a catalog of its own states its protocol
+  // there, so the interrogation speaks the route's protocol even while the
+  // profile names none.
+  const effectiveApi = stringAt(draft, 'api') ?? stringAt(fallback, 'api') ?? props.defaultApi
   const probeBaseURL = stringAt(draft, 'baseURL') ?? stringAt(fallback, 'baseURL')
   const probe = {
     settingsNs: namespace.ns,
@@ -256,7 +268,7 @@ export function ProviderEditor(props: ProviderEditorProps): ReactNode {
     // its own registry — better metadata, no network call, no endpoint needed.
     provider: props.provider,
     ...probeBaseURL === undefined ? {} : { baseURL: probeBaseURL },
-    ...probeApi === undefined ? {} : { api: probeApi },
+    ...effectiveApi === undefined ? {} : { api: effectiveApi },
     ...keyValue.length === 0 ? {} : { apiKey: keyValue },
   }
   /**
@@ -487,14 +499,17 @@ export function ProviderEditor(props: ProviderEditorProps): ReactNode {
               {endpointHint === undefined ? null : <span id={`${props.provider}-endpoint-hint`} className={styles['advancedHint']}>{endpointHint}</span>}
             </div>
             {/* The protocol sits beside the endpoint it describes, as it does
-                on the create card. */}
-            {ownsIdentity
+                on the create card. A route the adapter serves from a catalog of
+                its own states its protocol there, so the card shows the
+                selection that catalog made; a hand-declared route has none
+                until the user picks one. */}
+            {ownsIdentity || effectiveApi !== undefined
               ? (
                 <div className={styles['field']}>
                   <span className={styles['fieldLabel']}>{t('customApi')}</span>
                   <select
                     className={`${styles['input']} ${styles['selectInput']}`}
-                    value={probeApi ?? ''}
+                    value={effectiveApi ?? ''}
                     aria-label={t('customApi')}
                     disabled={disabled}
                     onChange={(event) => { setField('api', event.target.value) }}
@@ -505,7 +520,7 @@ export function ProviderEditor(props: ProviderEditorProps): ReactNode {
                         first choice. The option is named because a screen
                         reader announces it either way, and an empty one is
                         announced as a choice with no identity. */}
-                    {probeApi === undefined ? <option value="">{t('customApiUnset')}</option> : null}
+                    {effectiveApi === undefined ? <option value="">{t('customApiUnset')}</option> : null}
                     {protocols.map(choice => <option key={choice} value={choice}>{protocolLabel(t, choice)}</option>)}
                   </select>
                 </div>

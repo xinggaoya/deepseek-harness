@@ -23,7 +23,9 @@
 
 import { useId, useState } from 'react'
 import type { ReactNode } from 'react'
-import { Button, IconPlusOutlineRegular, Modal, SegmentedControl } from '@deepseek-ai/dsh-client-ui-primitives'
+import {
+  Button, IconPlusOutlineRegular, IconRefreshOutlineRegular, Modal, SegmentedControl, StateDot, Tooltip,
+} from '@deepseek-ai/dsh-client-ui-primitives'
 import type { InjectFace, PropsRenderSlots } from '@deepseek-ai/dsh-client-ui-slots'
 import type { LlmNativeAuth, SettingsNamespaceView } from '@deepseek-ai/dsh-api-remotes/client'
 // Type-only: pulls this package's SlotMap merge (the two Models child slots).
@@ -94,6 +96,8 @@ interface EditorTarget extends ProviderIdentity {
   declared?: boolean
   /** The route's catalog endpoint (see {@link ProviderEditorProps.defaultBaseURL}). */
   defaultBaseURL?: string
+  /** The route's wire protocol (see {@link ProviderEditorProps.defaultApi}). */
+  defaultApi?: string
   /** Environment used to construct an endpoint (see {@link ProviderEditorProps.baseURLEnv}). */
   baseURLEnv?: readonly string[]
   /** The route's native authentication (see {@link ProviderEditorProps.nativeAuth}). */
@@ -130,6 +134,7 @@ function renderProviderEditor({ target, row, ...props }: ProviderEditorRenderPro
       settingsPath={target.settingsPath}
       {...target.declared === true ? { declared: true } : {}}
       {...target.defaultBaseURL === undefined ? {} : { defaultBaseURL: target.defaultBaseURL }}
+      {...target.defaultApi === undefined ? {} : { defaultApi: target.defaultApi }}
       {...target.baseURLEnv === undefined ? {} : { baseURLEnv: target.baseURLEnv }}
       {...target.nativeAuth === undefined ? {} : { nativeAuth: target.nativeAuth }}
       {...row.credential === undefined ? {} : { credential: row.credential }}
@@ -213,6 +218,7 @@ function targetOf(row: ProviderRow): EditorTarget {
     // Only declared routes may expose route-owned fields.
     ...row.entry.declared === true ? { declared: true } : {},
     ...row.entry.defaultBaseURL === undefined ? {} : { defaultBaseURL: row.entry.defaultBaseURL },
+    ...row.entry.defaultApi === undefined ? {} : { defaultApi: row.entry.defaultApi },
     ...row.entry.baseURLEnv === undefined ? {} : { baseURLEnv: row.entry.baseURLEnv },
     ...row.entry.nativeAuth === undefined ? {} : { nativeAuth: row.entry.nativeAuth },
   }
@@ -268,6 +274,19 @@ function Loaded({ injected, renderSlot }: { injected: ModelsSectionFace; renderS
   const [deleteFailure, setDeleteFailure] = useState<string | undefined>(undefined)
   const [savedTarget, setSavedTarget] = useState<ProviderIdentity | undefined>(undefined)
   const [dismissedSetup, setDismissedSetup] = useState<ReadonlySet<string>>(() => new Set())
+  /** Whether a catalog refresh is running on the Host. */
+  const [refreshing, setRefreshing] = useState(false)
+
+  /**
+   * Re-read the catalog the routes draw their models from. The Host owns the
+   * fetch, so the button only reports that one is running; the outcome arrives
+   * as the notice the shared host announces.
+   */
+  const refreshCatalog = (): void => {
+    if (refreshing) return
+    setRefreshing(true)
+    void controller.refreshCatalog().finally(() => { setRefreshing(false) })
+  }
 
   const announceSaved = (target: ProviderIdentity): void => {
     // Announced only once the refreshed directory is in the snapshot the
@@ -412,8 +431,30 @@ function Loaded({ injected, renderSlot }: { injected: ModelsSectionFace; renderS
 
   return (
     <div className={styles['section']}>
-      <h2 className={styles['title']}>{t('title')}</h2>
-      <p className={styles['intro']}>{t('intro')}</p>
+      <div className={styles['header']}>
+        <div className={styles['headerText']}>
+          <h2 className={styles['title']}>{t('title')}</h2>
+          <p className={styles['intro']}>{t('intro')}</p>
+        </div>
+        {/* The catalog behind the provider list is fetched by the Host, so the
+            page offers to re-read it only where there is one to re-read. */}
+        {state.catalog.refreshable
+          ? (
+            <Tooltip label={t('refreshCatalog')} delayMs={500} focusDelayMs={500} side="bottom" portal>
+              <button
+                type="button"
+                className={styles['iconButton']}
+                aria-label={t('refreshCatalog')}
+                aria-busy={refreshing}
+                disabled={refreshing}
+                onClick={refreshCatalog}
+              >
+                {refreshing ? <StateDot state="ongoing" size={16} /> : <IconRefreshOutlineRegular size={15} />}
+              </button>
+            </Tooltip>
+          )
+          : null}
+      </div>
       {!state.writable && state.status === 'ready' ? <p className={styles['notice']}>{t('readOnly')}</p> : null}
       {savedIdentity === undefined
         ? null
@@ -645,6 +686,7 @@ function Loaded({ injected, renderSlot }: { injected: ModelsSectionFace; renderS
                       settingsPath={draft.target.settingsPath}
                       operations={operations}
                       {...draft.target.defaultBaseURL === undefined ? {} : { defaultBaseURL: draft.target.defaultBaseURL }}
+                      {...draft.target.defaultApi === undefined ? {} : { defaultApi: draft.target.defaultApi }}
                       {...draft.target.baseURLEnv === undefined ? {} : { baseURLEnv: draft.target.baseURLEnv }}
                       {...draft.target.nativeAuth === undefined ? {} : { nativeAuth: draft.target.nativeAuth }}
                       {...addRow?.credentialChecks === undefined ? {} : { credentialChecks: addRow.credentialChecks }}

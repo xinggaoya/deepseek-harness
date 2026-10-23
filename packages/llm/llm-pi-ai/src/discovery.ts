@@ -26,6 +26,7 @@ import { INVALID_CREDENTIAL_CODE, LlmError, normalizeApiKey } from '@deepseek-ai
 import type { LlmDiscoveredModel, LlmModelDiscoveryOperation } from '@deepseek-ai/dsh-llm'
 import { attributionHeaders } from '@deepseek-ai/dsh-llm'
 import { catalogModels } from './catalog.ts'
+import type { RemoteModelFacts } from './remote-catalog.ts'
 
 /**
  * Protocols whose model listing this module can read. OpenAI protocols use
@@ -262,6 +263,13 @@ export interface StoredModelDiscoveryProfile {
  * @param storedProfile - Host-owned headers and lazy credential resolution for
  *   the named route. It is read only on the path that reaches the network; the
  *   credential is resolved only when the draft carries none.
+ * @param remoteModels - the models the named route's catalog source offers, or
+ *   `undefined` when no source describes it. A route that draws its models
+ *   from a catalog outside the installed registry is answered from that
+ *   catalog rather than from the installed one, so the list a configuration
+ *   surface offers is the list that catalog carries. The route's own
+ *   configured models are never the answer: they are what the surface is
+ *   editing.
  * @returns the advertised models in endpoint order.
  * @throws LlmError when the protocol has no readable listing, the endpoint
  *   refuses or fails the request, or the reply is not a model listing.
@@ -269,10 +277,21 @@ export interface StoredModelDiscoveryProfile {
 export async function discoverModels(
   request: LlmModelDiscoveryOperation,
   storedProfile?: () => StoredModelDiscoveryProfile | undefined,
+  remoteModels?: (provider: string) => Promise<readonly RemoteModelFacts[] | undefined>,
 ): Promise<readonly LlmDiscoveredModel[]> {
   // A catalog route already has its answer, and a better one: the installed
   // entries carry context windows and output caps no listing endpoint reports.
   if (request.provider !== undefined) {
+    const remote = await remoteModels?.(request.provider)
+    if (remote !== undefined) {
+      return remote.map(model => ({
+        id: model.id,
+        name: model.name,
+        ...model.contextWindow === undefined ? {} : { contextWindow: model.contextWindow },
+        ...model.maxTokens === undefined ? {} : { maxTokens: model.maxTokens },
+        inputModalities: [...model.input],
+      }))
+    }
     const installed = catalogModels(request.provider)
     if (installed.size > 0) {
       return [...installed.values()].map(model => ({

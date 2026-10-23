@@ -297,8 +297,47 @@ describe('draft-provider model discovery', () => {
       .toEqual(['private-tenant', 'private-tenant', undefined, undefined])
   })
 
-  it('leaves a catalog route\'s credential unresolved, having never reached the network', async () => {
-    // The catalog answers before any endpoint is asked, so a route whose
+  it('answers from the catalog source when one describes the route', async () => {
+    // A route that draws its models from a catalog outside the installed
+    // registry is answered from that catalog: the surface is editing the
+    // route's own models, so the answer is what the catalog carries.
+    const answer = await discoverModels(
+      { provider: 'acme-ai' },
+      undefined,
+      async () => [
+        { id: 'acme-large', name: 'Acme Large', input: ['text' as const], reasoning: false },
+        {
+          id: 'acme-tall',
+          name: 'Acme Tall',
+          contextWindow: 128000,
+          maxTokens: 8192,
+          input: ['text' as const, 'image' as const],
+          reasoning: false,
+        },
+      ],
+    )
+    expect(answer).toEqual([
+      { id: 'acme-large', name: 'Acme Large', inputModalities: ['text'] },
+      {
+        id: 'acme-tall',
+        name: 'Acme Tall',
+        contextWindow: 128000,
+        maxTokens: 8192,
+        inputModalities: ['text', 'image'],
+      },
+    ])
+  })
+
+  it('interrogates the endpoint for a draft that names no route', async () => {
+    const server = await listingServer({ body: JSON.stringify({ data: [{ id: 'm' }] }) })
+    const ctx = new Context()
+    await ctx.plugin(LlmRuntime)
+    await ctx.plugin(LlmPiAi, { providers: {} })
+    const answer = await ctx.llm.discoverModels('llm-pi-ai', { baseURL: server.url })
+    expect(answer.map(model => model.id)).toEqual(['m'])
+  })
+
+  it('leaves a catalog route\'s credential unresolved, having never reached the network', async () => {    // The catalog answers before any endpoint is asked, so a route whose
     // profile names a credential that is not set must still answer rather than
     // failing over a key the interrogation never needed.
     const ctx = new Context()

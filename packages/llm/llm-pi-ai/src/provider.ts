@@ -71,16 +71,27 @@ export function supportedProtocols(): readonly string[] {
  * it as configured hands the decision to the protocol, which is where the
  * requirement actually lives — pi-ai's OpenAI-compatible implementation, for
  * one, still insists on a key or an `Authorization` header of its own.
+ *
+ * The provider's own environment names are the fallback for a route whose
+ * profile names no reference: a catalog route the adapter serves from a source
+ * outside its installed registry authenticates from the environment that
+ * source records, the way an installed catalog provider does.
  * @param name - display name used as the resolution's status label.
+ * @param env - environment variables the provider's credential is read from.
  * @returns the api-key auth for a harness-authenticated route.
  */
-function harnessApiKeyAuth(name: string): ApiKeyAuth {
+function harnessApiKeyAuth(name: string, env: readonly string[] = []): ApiKeyAuth {
   return {
     name,
-    resolve: ({ credential }) => Promise.resolve({
-      auth: credential?.key === undefined ? {} : { apiKey: credential.key },
-      source: name,
-    }),
+    resolve: async ({ ctx, credential, signal }) => {
+      if (credential?.key !== undefined) return { auth: { apiKey: credential.key }, source: name }
+      for (const variable of env) {
+        const value = await ctx.env(variable)
+        signal.throwIfAborted()
+        if (value !== undefined && value.length > 0) return { auth: { apiKey: value }, source: variable }
+      }
+      return { auth: {}, source: name }
+    },
   }
 }
 
@@ -104,6 +115,12 @@ export interface ProviderSpec {
    * request, never at construction.
    */
   namesCredential: boolean
+  /**
+   * Environment variables the provider's own credential is read from, when a
+   * catalog source records them. A route whose profile names no reference
+   * authenticates from them.
+   */
+  nativeEnv?: readonly string[]
 }
 
 /**
@@ -129,9 +146,9 @@ export interface ProviderSpec {
  * @returns the auth to construct this route's provider with.
  */
 function routeAuth(spec: ProviderSpec, catalog: Provider | undefined): Provider['auth'] {
-  if (catalog === undefined) return { apiKey: harnessApiKeyAuth(spec.displayName) }
+  if (catalog === undefined) return { apiKey: harnessApiKeyAuth(spec.displayName, spec.nativeEnv) }
   if (catalog.auth.apiKey !== undefined || !spec.namesCredential) return catalog.auth
-  return { ...catalog.auth, apiKey: harnessApiKeyAuth(spec.displayName) }
+  return { ...catalog.auth, apiKey: harnessApiKeyAuth(spec.displayName, spec.nativeEnv) }
 }
 
 /**

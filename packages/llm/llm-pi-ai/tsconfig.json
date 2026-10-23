@@ -27,6 +27,9 @@
       "path": "../../llm/llm"
     },
     {
+      "path": "../../llm/llm-models-dev"
+    },
+    {
       "path": "../../attachment/attachment"
     },
     {

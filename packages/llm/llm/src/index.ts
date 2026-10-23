@@ -12,6 +12,8 @@ import { deepFreeze } from '@deepseek-ai/dsh-util-values'
 import type {
   GenerateOptions,
   RequestMessage,
+  LlmCatalogSource,
+  LlmCatalogState,
   LlmConfigurableProvider,
   LlmDiscoveredModel,
   LlmFailure,
@@ -354,6 +356,7 @@ export interface DirectoryRegistrationHandle {
 export class LlmRuntime extends TypertRemoteService {
   private adapters = new Map<string, AdapterRegistration>()
   private directory = new Map<string, LlmConfigurableProvider>()
+  private catalogSources = new Set<LlmCatalogSource>()
   private discoveries = new Map<
     string,
     (request: LlmModelDiscoveryRequest, signal?: AbortSignal) => Promise<readonly LlmDiscoveredModel[]>
@@ -554,6 +557,59 @@ export class LlmRuntime extends TypertRemoteService {
   @Remote
   listConfigurableProviders(): LlmConfigurableProvider[] {
     return [...this.directory.values()].map(detachDirectoryEntry)
+  }
+
+  /**
+   * Register a catalog the provider routes' models can be drawn from.
+   *
+   * A catalog source owns its own fetch; registering it here lets a
+   * configuration surface ask whether one is there to re-read and ask for the
+   * re-read itself. Disposed with the fiber.
+   * @param source - the catalog source this registration owns.
+   * @returns the disposer that withdraws the source.
+   */
+  registerCatalogSource(source: LlmCatalogSource): () => void {
+    const dispose = this.ctx.effect(function* (this: LlmRuntime) {
+      this.catalogSources.add(source)
+      yield () => {
+        this.catalogSources.delete(source)
+      }
+    }.bind(this), 'llm.registerCatalogSource()')
+    return () => void dispose()
+  }
+
+  /**
+   * The catalog behind the provider routes.
+   *
+   * A configuration surface uses this to decide whether it offers to re-read
+   * a catalog.
+   * @returns the catalog state the registered sources report; no re-readable
+   *   catalog reports none.
+   */
+  @Remote
+  catalogState(): LlmCatalogState {
+    for (const source of this.catalogSources) {
+      if (source.catalogState().refreshable) return { refreshable: true }
+    }
+    return { refreshable: false }
+  }
+
+  /**
+   * Re-read the catalog behind the provider routes.
+   *
+   * Every source is asked, so one source's failure does not leave another's
+   * catalog stale; the first failure is the one reported.
+   * @returns a promise that settles once every source has re-read its
+   *   catalog, or rejects with the first failure.
+   */
+  @Remote
+  async refreshCatalog(): Promise<void> {
+    const results = await Promise.allSettled(
+      [...this.catalogSources].map(source => source.refreshCatalog()),
+    )
+    for (const result of results) {
+      if (result.status === 'rejected') throw result.reason
+    }
   }
 
   /**

@@ -2300,6 +2300,9 @@ importers:
       '@deepseek-ai/dsh-llm-deepseek-api-key':
         specifier: workspace:*
         version: link:../../llm/llm-deepseek-api-key
+      '@deepseek-ai/dsh-llm-models-dev':
+        specifier: workspace:*
+        version: link:../../llm/llm-models-dev
       '@deepseek-ai/dsh-llm-pi-ai':
         specifier: workspace:*
         version: link:../../llm/llm-pi-ai
@@ -5322,6 +5325,9 @@ importers:
       '@deepseek-ai/dsh-client-test-runtime':
         specifier: workspace:*
         version: link:../../test-support/client-runtime
+      '@deepseek-ai/dsh-client-ui-layout':
+        specifier: workspace:*
+        version: link:../ui-layout
       '@deepseek-ai/dsh-client-ui-primitives':
         specifier: workspace:*
         version: link:../ui-primitives
@@ -11275,6 +11281,22 @@ importers:
         specifier: workspace:*
         version: link:../llm-deepseek
 
+  packages/llm/llm-models-dev:
+    dependencies:
+      '@deepseek-ai/dsh-home-paths':
+        specifier: workspace:*
+        version: link:../../util/home-paths
+      '@deepseek-ai/schemastery':
+        specifier: link:../../../vendor/schemastery
+        version: link:../../../vendor/schemastery
+    devDependencies:
+      '@deepseek-ai/cordis':
+        specifier: workspace:~
+        version: link:../../../vendor/cordis
+      '@deepseek-ai/dsh-llm':
+        specifier: workspace:*
+        version: link:../llm
+
   packages/llm/llm-pi-ai:
     dependencies:
       '@deepseek-ai/dsh-brand':
@@ -11323,6 +11345,9 @@ importers:
       '@deepseek-ai/dsh-llm-deepseek-api-key':
         specifier: workspace:*
         version: link:../llm-deepseek-api-key
+      '@deepseek-ai/dsh-llm-models-dev':
+        specifier: workspace:*
+        version: link:../llm-models-dev
       '@deepseek-ai/dsh-settings':
         specifier: workspace:*
         version: link:../../settings/settings
@@ -11685,9 +11710,6 @@ importers:
       '@deepseek-ai/dsh-tools':
         specifier: workspace:*
         version: link:../../core/tools
-      '@deepseek-ai/dsh-typert-protocol':
-        specifier: workspace:*
-        version: link:../../typert/protocol
 
   packages/plan/plan-mode:
     dependencies:

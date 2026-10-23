@@ -12,12 +12,16 @@ import type { Context as ClientContext } from '@deepseek-ai/cordis'
 import type {} from '@deepseek-ai/dsh-client-ui-settings/client'
 // Type-only: pulls the locale plugin's Context merge (ctx.locale).
 import type {} from '@deepseek-ai/dsh-client-locale/client'
+// Type-only: pulls the shell's SlotMap merge (the 'shell.overlay' entry).
+import type {} from '@deepseek-ai/dsh-client-ui-layout/client'
 import type {} from '@deepseek-ai/dsh-client-ui-renderer/client'
 // Type-only: pulls the ctx.remote merge and the forwarded-event key face
 // (settings/credentials invalidations ride the allowlist) into this program.
 import type {} from '@deepseek-ai/dsh-api-remotes/client'
 import { ModelsSection } from './ModelsSection.tsx'
 import type { ModelsSectionInjected } from './ModelsSection.tsx'
+import { CatalogRefreshToast } from './CatalogRefreshToast.tsx'
+import type { CatalogRefreshToastInjected } from './CatalogRefreshToast.tsx'
 import { DeepSeekOnboardingDialog } from './DeepSeekOnboardingDialog.tsx'
 import type { DeepSeekOnboardingInjected } from './DeepSeekOnboardingDialog.tsx'
 import { WelcomeNotice } from './WelcomeNotice.tsx'
@@ -97,6 +101,13 @@ export function apply(ctx: ClientContext): void {
     schema,
     t,
   })
+  // The refresh runs on the Host and outlives this page, so its outcome is
+  // announced by a shell host rather than by the section that asked for it.
+  const catalogToastInjected = (): CatalogRefreshToastInjected => ({
+    hooks: { snapshot: controller.store },
+    dismiss: () => { controller.dismissCatalogNotice() },
+    t,
+  })
   const deepSeekOnboardingInjected = (): DeepSeekOnboardingInjected => ({
     automatic: credentialOnboarding,
     track: (name, attributes) => ctx.get('productAnalytics')?.track(name, attributes),
@@ -144,6 +155,12 @@ export function apply(ctx: ClientContext): void {
       'settings.models.footer': { kind: 'list', scope: 'root' },
     },
   }, ModelsSection))
+  ctx.slots.inject('shell.overlay', () => ctx.slots.register({
+    name: 'shell.overlay',
+    id: 'settings.models.catalog-refresh',
+    locale: NS,
+    inject: catalogToastInjected,
+  }, CatalogRefreshToast))
   if (!('dshDesktop' in globalThis)) ctx.slots.inject('settings.onboarding', () => ctx.slots.register({
     name: 'settings.onboarding',
     id: 'welcome-notice',

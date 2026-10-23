@@ -106,6 +106,8 @@ function scriptedFace(options: {
   baseProviders?: Record<string, JsonValue>
   /** Routes the adapter reports as hand-declared; the rest come back as shipped. */
   declaredRoutes?: readonly string[]
+  /** The protocol each route's catalog states, for a route served from one. */
+  defaultApis?: Readonly<Record<string, string>>
   discover?: ReturnType<typeof vi.fn>
   mutate?: ReturnType<typeof vi.fn>
   set?: ReturnType<typeof vi.fn>
@@ -129,9 +131,14 @@ function scriptedFace(options: {
           settingsNs: 'llm-pi-ai',
           settingsPath: ['providers', provider],
           declared: options.declaredRoutes?.includes(provider) ?? false,
+          ...options.defaultApis?.[provider] === undefined
+            ? {}
+            : { defaultApi: options.defaultApis[provider] },
         })),
       ))),
       discoverModels: discover,
+      catalogState: vi.fn(() => Promise.resolve(ok({ refreshable: false }))),
+      refreshCatalog: vi.fn(() => Promise.resolve(ok(undefined))),
     },
     settings: {
       describe: vi.fn(() => Promise.resolve(remoteOk({ writable: true, namespaces: [namespace] }))),
@@ -963,6 +970,37 @@ describe('hand-declared providers', () => {
     })
     openEditor('acme-gateway')
     expect(fields()).toEqual([en.keyInput, en.customDisplayName, en.baseUrl, en.customApi])
+    cleanup()
+
+    // A route the adapter serves from a catalog of its own states the protocol
+    // that catalog selected, so the card shows it instead of asking for one.
+    await mountSection({
+      providers: { 'acme-cloud': { apiKeyEnv: 'ACME_CLOUD_API_KEY' } },
+      defaultApis: { 'acme-cloud': 'anthropic-messages' },
+    })
+    openEditor('acme-cloud')
+    expect(fields()).toEqual([en.keyInput, en.baseUrl, en.customApi])
+    expect(screen.getByLabelText<HTMLSelectElement>(en.customApi).value).toBe('anthropic-messages')
+  })
+
+  it('shows the protocol a route catalog selected and writes an override when the user picks another', async () => {
+    const { mutate } = await mountSection({
+      providers: { 'acme-cloud': { apiKeyEnv: 'ACME_CLOUD_API_KEY' } },
+      defaultApis: { 'acme-cloud': 'anthropic-messages' },
+    })
+    openEditor('acme-cloud')
+
+    // The selection the catalog made, shown without the user choosing it.
+    const protocol = screen.getByLabelText<HTMLSelectElement>(en.customApi)
+    expect(protocol.value).toBe('anthropic-messages')
+    expect(screen.getByText(en.protocolAnthropicMessages)).toBeTruthy()
+
+    // A route whose endpoint speaks another protocol is repointed by naming it.
+    fireEvent.change(protocol, { target: { value: 'openai-completions' } })
+    fireEvent.click(screen.getByText(en.apply))
+    await waitFor(() => { expect(mutate).toHaveBeenCalledTimes(1) })
+    expect(firstMutate(mutate).ops)
+      .toEqual([{ op: 'set', path: ['providers', 'acme-cloud', 'api'], value: 'openai-completions' }])
   })
 
   it('renames a declared route and falls back to its id when the name is cleared', async () => {

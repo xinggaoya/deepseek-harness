@@ -1907,6 +1907,16 @@
       "source": "packages/llm/llm/src/types.ts"
     },
     {
+      "doc": "docs/subsystems/llm-streaming.md",
+      "symbol": "LlmCatalogState",
+      "source": "packages/llm/llm/src/types.ts"
+    },
+    {
+      "doc": "docs/subsystems/llm-streaming.md",
+      "symbol": "LlmCatalogSource",
+      "source": "packages/llm/llm/src/types.ts"
+    },
+    {
       "doc": "docs/subsystems/permission-presets.md",
       "symbol": "Config",
       "source": "packages/interaction/permission-presets/src/index.ts"

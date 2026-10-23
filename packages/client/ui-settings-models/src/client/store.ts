@@ -9,11 +9,12 @@
 
 import type { Context as ClientContext } from '@deepseek-ai/cordis'
 import type {
-  CredentialInfo, LlmConfigurableProvider, LlmNativeAuth, LlmProviderInfo, SettingsNamespaceView,
+  CredentialInfo, LlmCatalogState, LlmConfigurableProvider, LlmNativeAuth, LlmProviderInfo, SettingsNamespaceView,
 } from '@deepseek-ai/dsh-api-remotes/client'
 import type { SnapshotStore } from '@deepseek-ai/dsh-client-store'
 import { createSnapshotStore } from '@deepseek-ai/dsh-client-store'
 import type { SettingsDescribeFace } from '@deepseek-ai/dsh-client-ui-settings/client'
+import { isCredentialRefName } from './credential-ref.ts'
 import type { SettingsSchemaOperations } from './schema-operations.ts'
 
 /**
@@ -31,6 +32,10 @@ export interface ProviderDirectoryEntry {
   readonly active: boolean
   readonly declared?: boolean
   readonly defaultBaseURL?: string
+  /**
+   * The wire protocol the route's models speak when the profile names none.
+   */
+  readonly defaultApi?: string
   readonly baseURLEnv?: readonly string[]
   readonly nativeAuth?: LlmNativeAuth
   readonly error?: string
@@ -56,6 +61,7 @@ export function joinProviderDirectory(
     active: active.has(entry.provider),
     ...entry.declared === undefined ? {} : { declared: entry.declared },
     ...entry.defaultBaseURL === undefined ? {} : { defaultBaseURL: entry.defaultBaseURL },
+    ...entry.defaultApi === undefined ? {} : { defaultApi: entry.defaultApi },
     ...entry.baseURLEnv === undefined ? {} : { baseURLEnv: entry.baseURLEnv },
     ...entry.nativeAuth === undefined ? {} : { nativeAuth: entry.nativeAuth },
     ...entry.error === undefined ? {} : { error: entry.error },
@@ -113,17 +119,40 @@ export interface ModelsSettingsState {
   rows: readonly ProviderRow[]
   /** Namespace views by ns, for the editor's schema/layers/secrets. */
   namespaces: ReadonlyMap<string, SettingsNamespaceView>
+  /** The catalog the routes draw their models from, as the Host reports it. */
+  catalog: LlmCatalogState
+  /** The last catalog refresh outcome, shown outside this page's own lifetime. */
+  catalogNotice: CatalogNotice | null
+}
+
+/**
+ * The outcome of one catalog refresh.
+ *
+ * A refresh runs on the Host and outlives the page that asked for it, so its
+ * outcome is published as a notice rather than as page state.
+ */
+export interface CatalogNotice {
+  /** Whether the catalog was re-read, or the refresh failed. */
+  readonly kind: 'refreshed' | 'failed'
+  /** This notice's identity; a newer notice replaces an older one. */
+  readonly seq: number
 }
 
 /**
  * Derive the conventional credential reference for a provider route: the v1
  * page never asks for an environment-variable name, so a typed key stores
  * under this derived reference and the profile records it as `apiKeyEnv`.
+ *
+ * The name is a POSIX identifier, which may not begin with a digit: a provider
+ * whose id does — `302ai` in the models.dev catalog — would otherwise produce
+ * a reference the credential seam refuses to address, and this page's own
+ * reads and writes of it would fail while the provider looked unconfigured.
  * @param provider - provider route id (e.g. `anthropic`, `minimax-cn`).
  * @returns the derived reference name (e.g. `MINIMAX_CN_API_KEY`).
  */
 export function deriveKeyRef(provider: string): string {
-  return `${provider.toUpperCase().replace(/[^A-Z0-9]+/g, '_')}_API_KEY`
+  const name = `${provider.toUpperCase().replace(/[^A-Z0-9]+/g, '_')}_API_KEY`
+  return /^[0-9]/.test(name) ? `_${name}` : name
 }
 
 /**
@@ -186,12 +215,15 @@ export class ModelsSettingsStore {
   /** The snapshot the section renders from (uSES-safe store). */
   readonly store: SnapshotStore<ModelsSettingsState> = createSnapshotStore<ModelsSettingsState>({
     status: 'idle', error: null, credentialError: null, writable: false, rows: [], namespaces: new Map(),
+    catalog: { refreshable: false }, catalogNotice: null,
   })
 
   /** Latest load wins; an older response never overwrites a newer one. */
   private generation = 0
   /** Callers follow the current refresh's outcome, including callers whose read was superseded. */
   private readonly pendingLoads = new Set<PromiseWithResolvers<void>>()
+  /** The identity of the last published catalog notice. */
+  private noticeSeq = 0
 
   /**
    * @param ctx - the page plugin's context, whose `remote.llm` and
@@ -229,14 +261,18 @@ export class ModelsSettingsStore {
   /** Publish one joined answer; stale answers leave the current refresh in charge. */
   private async read(generation: number): Promise<void> {
     this.store.update((s) => { s.status = 'loading'; s.error = null })
-    const [registered, declared] = await Promise.all([
+    const [registered, declared, catalog] = await Promise.all([
       this.ctx.remote.llm.listProviders(),
       this.ctx.remote.llm.listConfigurableProviders(),
+      this.ctx.remote.llm.catalogState(),
       this.describeFace.ensure(),
     ])
     if (generation !== this.generation) return
     if (!registered.ok) { this.failLoad(registered.error.message); return }
     if (!declared.ok) { this.failLoad(declared.error.message); return }
+    // The catalog state is an enrichment: a Host that cannot answer it still
+    // serves the page, which then offers no refresh.
+    const catalogState = catalog.ok ? catalog.value : { refreshable: false }
     const mirrored = this.describeFace.getSnapshot()
     if (mirrored.view === undefined) {
       /* v8 ignore next -- SettingsDescribeFace.ensure settles with a view or the read's error */
@@ -273,6 +309,10 @@ export class ModelsSettingsStore {
     }
     const refs = [...new Set(rows.filter(row => row.entry.provider !== 'deepseek-account').flatMap(row =>
       row.apiKeyEnv === undefined ? [deriveKeyRef(row.entry.provider), ...row.entry.nativeAuth?.env ?? []] : [row.apiKeyEnv]))]
+      // A reference the credential seam cannot address is not asked about: one
+      // such name rejects the whole batch it travels in, which would cost every
+      // other row its credential state.
+      .filter(ref => isCredentialRefName(ref))
     const credentials: Record<string, CredentialInfo> = {}
     let credentialError: string | null = null
     // credentials.describe accepts at most 64 references per request.
@@ -280,9 +320,11 @@ export class ModelsSettingsStore {
       const response = await this.ctx.remote.credentials.describe(refs.slice(index, index + 64))
       // Credential state is an enrichment for the Models page: a failure
       // degrades the badge instead of failing the load. The onboarding
-      // projection below retains the failure distinction.
+      // projection below retains the failure distinction. A rejected batch
+      // does not stop the ones after it: the rest of the page still learns
+      // which of its references are configured.
       if (response.ok) Object.assign(credentials, response.value)
-      else { credentialError = response.error.message; break }
+      else if (credentialError === null) credentialError = response.error.message
     }
     if (generation !== this.generation) return
     this.store.update((s) => {
@@ -298,16 +340,20 @@ export class ModelsSettingsStore {
           ...row,
           ...named === undefined ? {} : { credential: named },
           ...derived === undefined ? {} : { derivedCredential: derived },
-          ...credentialError === null ? { credentialChecks: Object.fromEntries(
+          // The checks of the references this row names, as far as they were
+          // described: a reference whose batch failed is simply absent, and
+          // the card reads that as "not confirmed" for that row alone.
+          credentialChecks: Object.fromEntries(
             (row.apiKeyEnv === undefined ? row.entry.nativeAuth?.env ?? [] : [row.apiKeyEnv])
               .flatMap((ref) => {
                 const info = credentials[ref]
                 return info === undefined ? [] : [[ref, info] as const]
               }),
-          ) } : {},
+          ),
         }
       })
       s.namespaces = namespaces
+      s.catalog = catalogState
     })
   }
 
@@ -325,6 +371,39 @@ export class ModelsSettingsStore {
       s.status = 'error'
       s.error = message
     })
+  }
+
+  /**
+   * Re-read the catalog the routes draw their models from.
+   *
+   * The outcome is published as a notice rather than a page error: the rows
+   * stay usable either way, and the notice outlives this page, because a
+   * catalog fetch takes long enough that the user may leave the section while
+   * it runs.
+   * @returns resolution after the notice is published.
+   */
+  async refreshCatalog(): Promise<void> {
+    let failed = false
+    try {
+      failed = !(await this.ctx.remote.llm.refreshCatalog()).ok
+    } catch {
+      // A transport failure is a failed refresh like any other.
+      failed = true
+    }
+    this.store.update((s) => {
+      s.catalogNotice = { kind: failed ? 'failed' : 'refreshed', seq: this.nextNoticeSeq() }
+    })
+  }
+
+  /** Dismiss the catalog notice. */
+  dismissCatalogNotice(): void {
+    this.store.update((s) => { s.catalogNotice = null })
+  }
+
+  /** The next notice identity, so a newer notice replaces an older one. */
+  private nextNoticeSeq(): number {
+    this.noticeSeq += 1
+    return this.noticeSeq
   }
 }
 

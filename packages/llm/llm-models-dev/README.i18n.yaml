@@ -1,0 +1,73 @@
+# Bilingual-pair consistency record for README.md (docs/i18n/README.md): per heading
+# section, a hash of its English and Chinese blocks outside code blocks and generated regions.
+# After editing either side, bring the other along and re-record with:
+#   pnpm run verify-translation-pairing --write packages/llm/llm-models-dev/README.md
+/:
+  en: c4738c433e0345ff
+  zh: d1faceb991b2bbd9
+/deepseek-ai-dsh-llm-models-dev:
+  en: a1cd97c0e26cfd9c
+  zh: 4c568c24e0b10feb
+/deepseek-ai-dsh-llm-models-dev/summary:
+  en: 88b31694c53d3b31
+  zh: de02372645aaf707
+/deepseek-ai-dsh-llm-models-dev/table-of-contents:
+  en: d152484eb41ac6b4
+  zh: 09388d293f9be9cb
+/deepseek-ai-dsh-llm-models-dev/use-this-package:
+  en: 5f011c1a901ebbdd
+  zh: 6cfe6b648af14a14
+/deepseek-ai-dsh-llm-models-dev/use-this-package/when-to-choose-it:
+  en: a604da473395b533
+  zh: de122b1e2b746d74
+/deepseek-ai-dsh-llm-models-dev/use-this-package/minimal-configuration:
+  en: 59bbf1d06bfab0d7
+  zh: 11de02fe8abe0f37
+/deepseek-ai-dsh-llm-models-dev/use-this-package/what-a-route-serves:
+  en: c230165f31ae8384
+  zh: b784b7f02bd7d467
+/deepseek-ai-dsh-llm-models-dev/use-this-package/what-a-configuration-surface-offers:
+  en: eae7dbe8b4577d8c
+  zh: 2982a1eda85e8c41
+/deepseek-ai-dsh-llm-models-dev/use-this-package/failures-and-recovery:
+  en: 8296a800e5f497ea
+  zh: bf1f7d2b11e82fca
+/deepseek-ai-dsh-llm-models-dev/understand-the-implementation:
+  en: b696ae8681b421ed
+  zh: 6ecc0211636af82a
+/deepseek-ai-dsh-llm-models-dev/understand-the-implementation/design-philosophy:
+  en: 9c62082a50ddb36e
+  zh: e9fa1e1217754862
+/deepseek-ai-dsh-llm-models-dev/understand-the-implementation/source-map:
+  en: 0087ee1e44fd1375
+  zh: cd4c7ff2f59a9e5f
+/deepseek-ai-dsh-llm-models-dev/understand-the-implementation/reading-the-catalog:
+  en: cd591183ca17377a
+  zh: 43fcb521a0b85ae4
+/deepseek-ai-dsh-llm-models-dev/understand-the-implementation/refresh-schedule:
+  en: bed77d460f7ff41e
+  zh: 9c47615c864ddada
+/deepseek-ai-dsh-llm-models-dev/further-exploration:
+  en: 07df6e33c8a7f1d9
+  zh: 0f833140fddef25e
+/deepseek-ai-dsh-llm-models-dev/model-experience:
+  en: 215e7ba838619b7b
+  zh: a311da3843709f90
+/deepseek-ai-dsh-llm-models-dev/model-experience/provider-route-catalog:
+  en: f344270d53d244d4
+  zh: 8317f80e5a73d489
+/deepseek-ai-dsh-llm-models-dev/model-experience/provider-route-catalog/what-the-model-sees:
+  en: deb3d15dc7623108
+  zh: 1ecaaceace8226a9
+/deepseek-ai-dsh-llm-models-dev/model-experience/provider-route-catalog/token-effect:
+  en: 05f5921900463bc7
+  zh: 87189b5d6ae2dc1c
+/deepseek-ai-dsh-llm-models-dev/model-experience/provider-route-catalog/kv-cache-effect:
+  en: fd76a08d982cd545
+  zh: 2b90a6c4bbd158b6
+/deepseek-ai-dsh-llm-models-dev/known-limitations-and-deferred-work:
+  en: 86e411f30cce2769
+  zh: 2985c06299b4bd4f
+/deepseek-ai-dsh-llm-models-dev/known-limitations-and-deferred-work/dev-note:
+  en: 211e12b6ccc43a63
+  zh: a7de68605c7ceb0f

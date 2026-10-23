@@ -16,6 +16,13 @@ it.each([
   expect(deriveKeyRef(provider)).toBe(ref)
 })
 
+it('derives a reference the credential seam can address for a route id that starts with a digit', () => {
+  // `302ai` is a models.dev provider: a reference that may not start with a
+  // digit is one the seam refuses to address, and the page could neither
+  // read nor write the key stored under it.
+  expect(deriveKeyRef('302ai')).toBe('_302AI_API_KEY')
+})
+
 it('carries the endpoint and native authentication the adapter reports onto the row', () => {
   const nativeAuth = { env: ['ANTHROPIC_AUTH_TOKEN', 'ANTHROPIC_OAUTH_TOKEN', 'ANTHROPIC_API_KEY'], oauth: true }
   expect(joinProviderDirectory([], [{
@@ -24,6 +31,16 @@ it('carries the endpoint and native authentication the adapter reports onto the 
   }])).toEqual([{
     provider: 'anthropic', displayName: 'anthropic', settingsNs: 'llm-pi-ai', settingsPath: ['providers', 'anthropic'],
     active: false, defaultBaseURL: 'https://api.anthropic.com', baseURLEnv: ['ENDPOINT'], nativeAuth,
+  }])
+})
+
+it('carries the protocol the adapter reports onto the row', () => {
+  expect(joinProviderDirectory([], [{
+    provider: 'acme-cloud', displayName: 'acme-cloud', settingsNs: 'llm-pi-ai', settingsPath: ['providers', 'acme-cloud'],
+    defaultApi: 'openai-completions',
+  }])).toEqual([{
+    provider: 'acme-cloud', displayName: 'acme-cloud', settingsNs: 'llm-pi-ai', settingsPath: ['providers', 'acme-cloud'],
+    active: false, defaultApi: 'openai-completions',
   }])
 })
 
@@ -138,6 +155,7 @@ function api(overrides: {
       listConfigurableProviders: () => mapProviderBatch(rows => rows
         .filter(row => row.settingsNs !== '')
         .map(({ active: _active, ...row }) => row)),
+      catalogState: () => Promise.resolve(remoteOk({ refreshable: false })),
       discoverModels: () => Promise.resolve(remoteOk([])),
     },
     settings: {
@@ -214,6 +232,42 @@ describe('ModelsSettingsStore', () => {
     expect(state.status).toBe('ready')
     expect(state.credentialError).toBe('no provider')
     expect(state.rows.every(row => row.credential === undefined)).toBe(true)
+  })
+
+  it('keeps the credential state of the batches a refused one did not cover', async () => {
+    const providers = Array.from({ length: 65 }, (_, index) => ({
+      provider: `fixture-${index}`, displayName: 'fixture', settingsNs: 'llm-pi-ai', settingsPath: ['providers', `fixture-${index}`], active: false,
+    }))
+    const { ctx, mirror, seenRefs } = api({
+      providers: () => Promise.resolve(ok({ providers })),
+      describeCredentials: refs => Promise.resolve(refs.includes('FIXTURE_0_API_KEY')
+        ? remoteFail('one reference the seam cannot address')
+        : remoteOk(Object.fromEntries(refs.map(ref => [ref, { configured: true, writable: true }])))),
+    })
+    const store = new ModelsSettingsStore(ctx, settingsSchema, mirror)
+    await store.load()
+    const state = store.store.getSnapshot()
+    expect(seenRefs.map(refs => refs.length)).toEqual([64, 1])
+    expect(state.credentialError).toBe('one reference the seam cannot address')
+    // The refused batch loses its state; the batch after it keeps its own.
+    expect(state.rows[0]?.credentialChecks).toEqual({})
+    expect(state.rows[64]?.derivedCredential).toMatchObject({ configured: true })
+  })
+
+  it('does not ask about a reference the credential seam cannot address', async () => {
+    const { ctx, mirror, seenRefs } = api({
+      providers: () => Promise.resolve(ok({
+        providers: [{
+          provider: 'acme', displayName: 'acme', settingsNs: 'llm-pi-ai', settingsPath: ['providers', 'acme'], active: false,
+          nativeAuth: { env: ['9INVALID'], oauth: false },
+        }] as never,
+      })),
+    })
+    const store = new ModelsSettingsStore(ctx, settingsSchema, mirror)
+    await store.load()
+    // One such name rejects the whole batch it travels in, which would cost
+    // every other row its credential state.
+    expect(seenRefs).toEqual([['ACME_API_KEY']])
   })
 
   it('surfaces a directory failure and keeps the last good rows', async () => {

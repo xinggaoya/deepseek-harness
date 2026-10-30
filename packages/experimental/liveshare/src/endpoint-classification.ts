@@ -40,6 +40,7 @@ export const VIEWER_ENDPOINT_CLASSES = {
   // ── reader-global-read ─────────────────────────────────────────────────────────────
   'llm/listConfigurableProviders': 'reader-global-read', // the page reads the configurable provider catalog
   'llm/listProviders': 'reader-global-read', // the page lists providers
+  'llm/catalogState': 'reader-global-read', // the page reads whether a model catalog can be re-read
   'session/canOpenWorkspacePath': 'reader-global-read', // the page asks whether a path can be opened
   'session/modelCatalog': 'reader-global-read', // the page reads the model catalog
 
@@ -211,6 +212,7 @@ export const VIEWER_ENDPOINT_CLASSES = {
   'userQuestions/answer': 'owner-only', // owner answers a pending question
   'userQuestions/attachWait': 'owner-only', // owner answers a pending question
   'llm/discoverModels': 'owner-only', // owner discovers models
+  'llm/refreshCatalog': 'owner-only', // owner refreshes the model catalog
   'agentPresets/list': 'owner-only', // owner agent presets
   'agentPresets/read': 'owner-only', // owner agent presets
   'agentPresets/select': 'owner-only', // owner agent presets

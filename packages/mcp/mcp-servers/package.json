@@ -1,7 +1,7 @@
 {
   "name": "@deepseek-ai/dsh-mcp-servers",
   "description": "Deployment-owned MCP servers: the settings namespace over the mcp-client instances a deployment connects to",
-  "version": "0.2.1-rc.2",
+  "version": "0.2.2-alpha.2",
   "publishConfig": {
     "access": "public"
   },

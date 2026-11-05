@@ -1,0 +1,6 @@
+{
+  "meta": {
+    "title": "models.dev カタログ",
+    "description": "models.dev のモデルカタログを提供し、ローカルキャッシュを任意のタイミングで更新します。"
+  }
+}

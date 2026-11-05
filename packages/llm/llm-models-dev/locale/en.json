@@ -1,0 +1,6 @@
+{
+  "meta": {
+    "title": "models.dev catalog",
+    "description": "Serve the models.dev model catalog and refresh its local cache on demand."
+  }
+}

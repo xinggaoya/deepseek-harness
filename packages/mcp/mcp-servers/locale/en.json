@@ -1,0 +1,6 @@
+{
+  "meta": {
+    "title": "MCP servers",
+    "description": "Own the MCP servers this deployment connects to and reconcile them with the running clients."
+  }
+}

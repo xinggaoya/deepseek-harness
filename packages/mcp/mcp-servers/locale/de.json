@@ -1,0 +1,6 @@
+{
+  "meta": {
+    "title": "MCP-Server",
+    "description": "Verwaltet die MCP-Server, mit denen sich diese Bereitstellung verbindet, und gleicht sie mit den laufenden Clients ab."
+  }
+}

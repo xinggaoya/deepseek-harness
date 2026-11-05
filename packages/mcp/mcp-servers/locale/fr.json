@@ -1,0 +1,6 @@
+{
+  "meta": {
+    "title": "Serveurs MCP",
+    "description": "Gère les serveurs MCP auxquels ce déploiement se connecte et les aligne sur les clients en cours d’exécution."
+  }
+}

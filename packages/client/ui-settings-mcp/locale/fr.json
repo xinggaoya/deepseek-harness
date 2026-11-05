@@ -1,0 +1,6 @@
+{
+  "meta": {
+    "title": "Paramètres des serveurs MCP",
+    "description": "Consultez les serveurs MCP auxquels ce déploiement se connecte et leur état."
+  }
+}

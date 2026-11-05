@@ -1,0 +1,6 @@
+{
+  "meta": {
+    "title": "models.dev-Katalog",
+    "description": "Liefert den models.dev-Modellkatalog und aktualisiert dessen lokalen Cache bei Bedarf."
+  }
+}

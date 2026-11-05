@@ -1,0 +1,6 @@
+{
+  "meta": {
+    "title": "Catálogo models.dev",
+    "description": "Serve o catálogo de modelos do models.dev e atualiza seu cache local sob demanda."
+  }
+}

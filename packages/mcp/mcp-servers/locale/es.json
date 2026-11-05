@@ -1,0 +1,6 @@
+{
+  "meta": {
+    "title": "Servidores MCP",
+    "description": "Gestiona los servidores MCP a los que se conecta esta implementación y los reconcilia con los clientes en ejecución."
+  }
+}

@@ -147,8 +147,10 @@
   cursor: pointer;
 }
 
-.remove:hover:not(:disabled) {
-  color: var(--dsw-alias-label-primary);
+@media (hover: hover) {
+  .remove:hover:not(:disabled) {
+    color: var(--dsw-alias-label-primary);
+  }
 }
 
 .remove:disabled {
@@ -167,8 +169,10 @@
   cursor: pointer;
 }
 
-.add:hover:not(:disabled) {
-  background: var(--dsw-alias-bg-layer-4);
+@media (hover: hover) {
+  .add:hover:not(:disabled) {
+    background: var(--dsw-alias-bg-layer-4);
+  }
 }
 
 .add:disabled {

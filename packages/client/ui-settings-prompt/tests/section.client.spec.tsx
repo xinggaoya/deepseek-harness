@@ -4,15 +4,21 @@
 import { useSyncExternalStore } from 'react'
 import { cleanup, fireEvent, render, screen } from '@testing-library/react'
 import { afterEach, describe, expect, it, vi } from 'vitest'
+import { allowAllAccess, contextMenuHook } from '@deepseek-ai/dsh-client-test-runtime'
 import type { SettingsFormPathOp, SettingsFormScope, SettingsFormScopeSnapshot } from '@deepseek-ai/dsh-client-ui-primitives'
 import { PromptSection } from '../src/client/PromptSection.tsx'
 import type { PromptSectionProps } from '../src/client/PromptSection.tsx'
 import { en } from '../src/client/locales.ts'
-import { PromptCardController, type PromptSettings } from '../src/client/prompt-card-controller.ts'
+import { PromptCardController, type PromptCardState, type PromptSettings } from '../src/client/prompt-card-controller.ts'
 
 afterEach(cleanup)
 
-const t = (key: keyof typeof en) => en[key]
+const translations: ReadonlyMap<string, string> = new Map(Object.entries(en))
+
+/** The page reads no global slot source; a hook that throws proves it. */
+function unusedHook(): never {
+  throw new Error('This section does not read global slot sources')
+}
 
 function renderSection(state: Partial<{
   personaPrefix: string
@@ -23,7 +29,7 @@ function renderSection(state: Partial<{
 }> = {}) {
   const overridden = state.overridden ?? false
   const field = (text: string) => ({ text, overridden, invalid: false })
-  const snapshot = {
+  const snapshot: PromptCardState = {
     available: true,
     writable: true,
     dirty: false,
@@ -39,9 +45,17 @@ function renderSection(state: Partial<{
   const resetField = vi.fn()
   const save = vi.fn()
   const discard = vi.fn()
-  const props = {
-    t,
-    usePromptCard: (selector: (value: unknown) => unknown) => useSyncExternalStore(
+  const props: PromptSectionProps = {
+    close: () => {},
+    usePanelInfo: unusedHook,
+    useSessions: unusedHook,
+    useSessionStatus: unusedHook,
+    useSessionRetainInfo: unusedHook,
+    useWorkspaces: unusedHook,
+    useResource: unusedHook,
+    ...allowAllAccess,
+    useContextMenu: contextMenuHook(),
+    usePromptCard: selector => useSyncExternalStore(
       () => () => {},
       () => selector(snapshot),
       () => selector(snapshot),
@@ -50,7 +64,8 @@ function renderSection(state: Partial<{
     resetField,
     save,
     discard,
-  } as unknown as PromptSectionProps
+    t: key => translations.get(key) ?? key,
+  }
   render(<PromptSection {...props} />)
   return { edit, resetField, save, discard }
 }

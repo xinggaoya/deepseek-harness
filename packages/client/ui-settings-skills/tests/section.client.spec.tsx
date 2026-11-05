@@ -4,6 +4,7 @@
 import { useSyncExternalStore } from 'react'
 import { cleanup, fireEvent, render, screen } from '@testing-library/react'
 import { afterEach, describe, expect, it, vi } from 'vitest'
+import { allowAllAccess, contextMenuHook } from '@deepseek-ai/dsh-client-test-runtime'
 import { createSnapshotStore } from '@deepseek-ai/dsh-client-store'
 import { SkillsSection } from '../src/client/SkillsSection.tsx'
 import type { SkillsSectionProps } from '../src/client/SkillsSection.tsx'
@@ -12,7 +13,12 @@ import type { SkillsSectionState } from '../src/client/skills-store.ts'
 
 afterEach(cleanup)
 
-const t = (key: keyof typeof en) => en[key]
+const translations: ReadonlyMap<string, string> = new Map(Object.entries(en))
+
+/** The page reads no global slot source; a hook that throws proves it. */
+function unusedHook(): never {
+  throw new Error('This section does not read global slot sources')
+}
 
 const SKILLS: SkillsSectionState['skills'] = [
   {
@@ -37,16 +43,25 @@ function renderSection(state: Partial<SkillsSectionState> = {}) {
     status: 'ready', error: null, skills: SKILLS, query: '', ...state,
   })
   const load = vi.fn(async () => {})
-  const props = {
-    t,
-    useSkillsSection: (selector: (value: SkillsSectionState) => unknown) => useSyncExternalStore(
+  const props: SkillsSectionProps = {
+    close: () => {},
+    usePanelInfo: unusedHook,
+    useSessions: unusedHook,
+    useSessionStatus: unusedHook,
+    useSessionRetainInfo: unusedHook,
+    useWorkspaces: unusedHook,
+    useResource: unusedHook,
+    ...allowAllAccess,
+    useContextMenu: contextMenuHook(),
+    useSkillsSection: selector => useSyncExternalStore(
       listener => store.subscribe(listener),
       () => selector(store.getSnapshot()),
       () => selector(store.getSnapshot()),
     ),
     load,
     setQuery: (query: string) => { store.set({ ...store.getSnapshot(), query }) },
-  } as unknown as SkillsSectionProps
+    t: key => translations.get(key) ?? key,
+  }
   render(<SkillsSection {...props} />)
   return { load, store }
 }

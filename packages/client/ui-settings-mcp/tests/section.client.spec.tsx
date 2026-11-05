@@ -4,14 +4,20 @@
 import { useSyncExternalStore } from 'react'
 import { cleanup, fireEvent, render, screen } from '@testing-library/react'
 import { afterEach, describe, expect, it, vi } from 'vitest'
+import { allowAllAccess, contextMenuHook } from '@deepseek-ai/dsh-client-test-runtime'
 import { McpSection } from '../src/client/McpSection.tsx'
 import type { McpSectionProps } from '../src/client/McpSection.tsx'
 import { en } from '../src/client/locales.ts'
-import type { McpServerDraft } from '../src/client/mcp-card-controller.ts'
+import type { McpCardState, McpServerDraft } from '../src/client/mcp-card-controller.ts'
 
 afterEach(cleanup)
 
-const t = (key: keyof typeof en) => en[key]
+const translations: ReadonlyMap<string, string> = new Map(Object.entries(en))
+
+/** The page reads no global slot source; a hook that throws proves it. */
+function unusedHook(): never {
+  throw new Error('This section does not read global slot sources')
+}
 
 /** One server draft the page shows. */
 function server(overrides: Partial<McpServerDraft> = {}): McpServerDraft {
@@ -33,7 +39,7 @@ function renderSection(servers: McpServerDraft[] = []) {
   const setServers = vi.fn()
   const save = vi.fn()
   const discard = vi.fn()
-  const snapshot = {
+  const snapshot: McpCardState = {
     available: true,
     writable: true,
     dirty: false,
@@ -42,9 +48,17 @@ function renderSection(servers: McpServerDraft[] = []) {
     failed: false,
     servers,
   }
-  const props = {
-    t,
-    useMcpCard: (selector: (value: unknown) => unknown) => useSyncExternalStore(
+  const props: McpSectionProps = {
+    close: () => {},
+    usePanelInfo: unusedHook,
+    useSessions: unusedHook,
+    useSessionStatus: unusedHook,
+    useSessionRetainInfo: unusedHook,
+    useWorkspaces: unusedHook,
+    useResource: unusedHook,
+    ...allowAllAccess,
+    useContextMenu: contextMenuHook(),
+    useMcpCard: selector => useSyncExternalStore(
       () => () => {},
       () => selector(snapshot),
       () => selector(snapshot),
@@ -52,7 +66,8 @@ function renderSection(servers: McpServerDraft[] = []) {
     setServers,
     save,
     discard,
-  } as unknown as McpSectionProps
+    t: key => translations.get(key) ?? key,
+  }
   render(<McpSection {...props} />)
   return { setServers, save, discard }
 }

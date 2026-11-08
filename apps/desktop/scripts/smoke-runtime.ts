@@ -13,6 +13,25 @@ import { createPluginProfile } from '../src/project-manager.ts'
 import type { DesktopRuntimeDescriptor } from '../src/runtime-tree.ts'
 
 /**
+ * Resolve the smoke-test deadline in milliseconds.
+ *
+ * A build host that converts Office documents slowly needs a longer deadline
+ * than the default. `DSH_DESKTOP_SMOKE_TIMEOUT_MS` raises it; without it the
+ * deadline stays at the default and the packaged runtime keeps its own
+ * conversion timeout.
+ * @returns Positive deadline in milliseconds.
+ */
+export function smokeDeadlineMs(): number {
+  const configured = process.env.DSH_DESKTOP_SMOKE_TIMEOUT_MS
+  if (configured === undefined) return 120_000
+  const value = Number(configured)
+  if (!Number.isSafeInteger(value) || value <= 0) {
+    throw new Error('DSH_DESKTOP_SMOKE_TIMEOUT_MS must be a positive integer number of milliseconds')
+  }
+  return value
+}
+
+/**
  * Check CLI package operations, Host startup, its frontend, external plugins and real Office-to-PDF conversion.
  * @param root - Materialized dsh resources.
  * @param node - Prepared target Electron executable.
@@ -25,6 +44,10 @@ export async function smokeDesktopRuntime(
   root: string, node: string, runtime: DesktopRuntimeDescriptor, environment: NodeJS.ProcessEnv, resourcesRuntime: string,
 ): Promise<void> {
   const home = mkdtempSync(join(tmpdir(), 'dsh-desktop-smoke-'))
+  const deadlineMs = smokeDeadlineMs()
+  // The packaged runtime rejects a slow conversion on its own deadline, so the
+  // HTTP request waits longer than that deadline to report the failure.
+  const requestTimeoutMs = deadlineMs * 2
   const profile = join(home, 'profiles', 'desktop')
   const hostEnvironment = {
     ...Object.fromEntries(Object.entries(environment).filter(([name]) => !/^(?:npm|pnpm|corepack)_/iu.test(name))),
@@ -144,9 +167,13 @@ export function apply(ctx) {
     manifest.dependencies = { ...manifest.dependencies, [pluginName]: `file:${plugin}` }
     manifest.dsh.profile.bundles.push(pluginName)
     writeFileSync(join(profile, 'package.json'), JSON.stringify(manifest))
-    writeFileSync(join(profile, 'cordis.patch.yml'), '- id: webserver\n  config:\n    host: 127.0.0.1\n    port: 0\n')
+    const officeTimeoutPatch = process.env.DSH_DESKTOP_SMOKE_TIMEOUT_MS === undefined
+      ? ''
+      : `- id: office-to-pdf\n  config:\n    timeoutMs: ${deadlineMs}\n`
+    writeFileSync(join(profile, 'cordis.patch.yml'),
+      `- id: webserver\n  config:\n    host: 127.0.0.1\n    port: 0\n${officeTimeoutPatch}`)
     const ready = await Promise.race([host.start(), new Promise<never>((_, reject) => {
-      timer = setTimeout(() => { reject(new Error('desktop runtime: Host readiness exceeded 120 seconds')) }, 120_000)
+      timer = setTimeout(() => { reject(new Error(`desktop runtime: Host readiness exceeded ${deadlineMs} milliseconds`)) }, deadlineMs)
     })])
     clearTimeout(timer)
     const login = await fetch(ready.url, { redirect: 'manual' })
@@ -158,7 +185,7 @@ export function apply(ctx) {
     const pluginResponse = await fetch(new URL('/desktop-smoke', ready.url), { headers: { cookie } })
     if (await pluginResponse.text() !== 'plugin route ready') throw new Error('desktop runtime: plugin HTTP route failed')
     const installation = await fetch(new URL('/desktop-smoke-install', ready.url), {
-      headers: { cookie }, signal: AbortSignal.timeout(120_000),
+      headers: { cookie }, signal: AbortSignal.timeout(requestTimeoutMs),
     })
     const installationResult = await installation.text()
     const installed = await fetch(new URL('/desktop-smoke-installed', ready.url), { headers: { cookie } })
@@ -167,7 +194,7 @@ export function apply(ctx) {
     }
     for (const { extension } of inputs) {
       const converted = await fetch(new URL(`/desktop-smoke-office/${extension}`, ready.url), {
-        headers: { cookie }, signal: AbortSignal.timeout(120_000),
+        headers: { cookie }, signal: AbortSignal.timeout(requestTimeoutMs),
       })
       if (!converted.ok) throw new Error(`desktop runtime: ${extension} conversion failed: ${await converted.text()}`)
       const pdf = Buffer.from(await converted.arrayBuffer())
@@ -177,7 +204,7 @@ export function apply(ctx) {
       }
     }
     const cliResponse = await fetch(new URL('/desktop-smoke-office-cli', ready.url), {
-      headers: { cookie }, signal: AbortSignal.timeout(120_000),
+      headers: { cookie }, signal: AbortSignal.timeout(requestTimeoutMs),
     })
     if (!cliResponse.ok) throw new Error(`desktop runtime: skill CLI failed: ${await cliResponse.text()}`)
     const cliResult = await cliResponse.json() as { capabilities: { runtime: { cliPath: string } }; pdf: string }

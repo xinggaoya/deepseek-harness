@@ -77,6 +77,9 @@ jobs:
       # The tag names the release, so the version is the tag's own suffix.
       PACKAGE_VERSION_MODE: manual
       DSH_DESKTOP_UPDATE_CHANNEL: nightly
+      # The hosted runners convert Office documents slowly; the packaged
+      # runtime's own conversion timeout would end the smoke test.
+      DSH_DESKTOP_SMOKE_TIMEOUT_MS: '600000'
       DSH_FORK_CACHE: ${{ matrix.cache }}
     outputs:
       version: ${{ steps.tag.outputs.version }}

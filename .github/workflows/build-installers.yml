@@ -56,7 +56,7 @@ jobs:
             preset: none
             artifact: '*-unsigned.dmg'
           - target: mac-x64
-            runner: macos-15-intel
+            runner: macos-latest
             shell: bash
             cache: '/Users/runner/.dsh-fork-cache'
             package: package:desktop:mac:x64:unsigned
@@ -96,6 +96,17 @@ jobs:
         uses: actions/setup-node@v7.0.0
         with:
           node-version: ${{ env.PRIMARY_NODE_VERSION }}
+
+      - name: Ensure Rosetta is available
+        # The Intel installer builds on the Apple Silicon runner, so the
+        # packaged runtime and its smoke test run under Rosetta.
+        if: matrix.target == 'mac-x64'
+        shell: bash
+        run: |
+          if ! /usr/bin/pgrep -q oahd; then
+            sudo softwareupdate --install-rosetta --agree-to-license
+          fi
+          /usr/bin/arch -x86_64 /usr/bin/true
 
       - name: Configure the build caches
         shell: bash

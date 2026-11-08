@@ -178,7 +178,13 @@ jobs:
         uses: actions/upload-artifact@v7.0.1
         with:
           name: installer-${{ matrix.target }}
-          path: apps/desktop/.desktop-build/targets/${{ matrix.target }}/unsigned-artifacts/*.{exe,dmg,blockmap}
+          # One glob per line: the action's own glob does not accept the
+          # brace alternation, and the unsigned suffix keeps the NSIS
+          # uninstaller stub out of the release.
+          path: |
+            apps/desktop/.desktop-build/targets/${{ matrix.target }}/unsigned-artifacts/*.unsigned.exe
+            apps/desktop/.desktop-build/targets/${{ matrix.target }}/unsigned-artifacts/*.unsigned.dmg
+            apps/desktop/.desktop-build/targets/${{ matrix.target }}/unsigned-artifacts/*.blockmap
           if-no-files-found: error
           retention-days: 14
 

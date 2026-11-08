@@ -122,14 +122,14 @@ jobs:
           '@ | Set-Content -Path (Join-Path $presetDirectory 'test.env') -Encoding utf8
 
       - name: Restore the pnpm store
-        uses: actions/cache@v6.1.0
+        uses: actions/cache@v6
         with:
           path: ${{ env.DSH_FORK_CACHE }}/pnpm
           key: pnpm-${{ runner.os }}-${{ hashFiles('pnpm-lock.yaml') }}
           restore-keys: pnpm-${{ runner.os }}-
 
       - name: Restore the packaging caches
-        uses: actions/cache@v6.1.0
+        uses: actions/cache@v6
         with:
           path: |
             ${{ env.DSH_FORK_CACHE }}/package

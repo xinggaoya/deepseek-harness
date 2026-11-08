@@ -144,7 +144,16 @@ jobs:
           $assets = @($installer)
           if (Test-Path "$installer.blockmap") { $assets += "$installer.blockmap" }
           $notes = "Unsigned Windows x64 installer for version $env:PACKAGE_VERSION.`n`nBuilt from commit $env:GITHUB_SHA on the hosted windows-2025 runner. The installer carries no signature, so Windows shows an unknown-publisher warning on first launch."
-          gh release create $env:RELEASE_TAG @assets --title "DeepSeek Harness $env:PACKAGE_VERSION (Windows x64, unsigned)" --notes $notes --clobber --repo $env:GITHUB_REPOSITORY
+          $title = "DeepSeek Harness $env:PACKAGE_VERSION (Windows x64, unsigned)"
+          # gh release create has no --clobber flag; an existing release takes the upload path.
+          gh release view $env:RELEASE_TAG --repo $env:GITHUB_REPOSITORY 2>$null
+          if ($LASTEXITCODE -eq 0) {
+            gh release upload $env:RELEASE_TAG @assets --clobber --repo $env:GITHUB_REPOSITORY
+            gh release edit $env:RELEASE_TAG --title $title --notes $notes --repo $env:GITHUB_REPOSITORY
+          }
+          else {
+            gh release create $env:RELEASE_TAG @assets --title $title --notes $notes --repo $env:GITHUB_REPOSITORY
+          }
 
       - name: Retain the packaging diagnostics
         if: always()

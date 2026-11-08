@@ -214,16 +214,23 @@ describe('ModelsDevCatalog', () => {
 
   it('stops the schedule and cancels a fetch in flight when disposed', async () => {
     let release: (() => void) | undefined
-    vi.stubGlobal('fetch', vi.fn(async () => {
-      await new Promise<void>((resolve) => { release = resolve })
+    // A real fetch fails when its signal aborts, so the cancelled attempt
+    // ends there: it neither answers with a catalog nor keeps one.
+    vi.stubGlobal('fetch', vi.fn(async (_input: unknown, init?: { signal?: AbortSignal }) => {
+      await new Promise<void>((resolve, reject) => {
+        release = resolve
+        init?.signal?.addEventListener('abort', () => { reject(new Error('aborted')) })
+      })
       return new Response(JSON.stringify(CATALOG), { status: 200 })
     }))
     const ctx = await context()
     await ctx.plugin(ModelsDevCatalog, { url: URL, dshHome: home })
     await vi.waitFor(() => { expect(release).toBeDefined() })
+    const service = ctx.llmModelsDev
     await ctx.fiber.dispose()
     release?.()
     await vi.waitFor(() => { expect(vi.mocked(fetch).mock.calls).toHaveLength(1) })
+    expect(service.snapshot()).toBeUndefined()
   })
 
   it('settles its readiness when the first attempt finishes', async () => {

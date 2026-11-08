@@ -31,6 +31,8 @@ Mount this plugin when a composition's provider routes should take their model l
 
 Choose it when a provider ships models faster than a packaged dependency can list them: a new flagship, a renamed preview, a model that only a coding plan exposes. Skip it when the installed catalog already lists every model a route serves, and when a deployment must not reach the public internet at runtime.
 
+The catalog document is models.dev's own. This fork fetches it from its own proxy at `models.moncn.cn`, because models.dev is unreachable from the deployments the fork targets; a deployment that can reach models.dev directly names its own endpoint in `url`.
+
 ### Minimal configuration
 
 ```yaml
@@ -47,7 +49,7 @@ Choose it when a provider ships models faster than a packaged dependency can lis
 
 | Field | Default | Meaning |
 |---|---|---|
-| `url` | `https://models.dev/api.json` | Catalog endpoint |
+| `url` | `https://models.moncn.cn/api.json` | Catalog endpoint |
 | `refreshIntervalMs` | `21600000` | How often the catalog is refetched, in milliseconds |
 | `timeoutMs` | `30000` | How long one catalog request may take, in milliseconds |
 | `maxBytes` | `16777216` | The largest catalog reply accepted, in bytes |
@@ -146,7 +148,7 @@ None. The catalog is read before a request is assembled and never reaches a prov
 
 These limits define where the catalog service stops and future work begins. They are current package constraints, not a general comparison of model catalogs or a task backlog.
 
-- **The catalog is a public document fetched over the network** — a deployment that cannot reach models.dev keeps the catalog it last fetched, and a deployment that never reaches it serves the installed pi-ai catalog unchanged.
+- **The catalog is a public document fetched over the network** — a deployment that cannot reach the catalog endpoint keeps the catalog it last fetched, and a deployment that never reaches it serves the installed pi-ai catalog unchanged.
 - **A provider's identity is its models.dev id** — a route whose key is not a provider id the catalog records draws no models from it and serves the installed catalog instead.
 - **The catalog states capabilities, not dialects** — a model only the catalog lists has no compatibility switches, so an endpoint that needs one must name it in the route's own configuration.
 - **The reply is read whole** — the catalog is one document of several megabytes, and a service that must not hold it in memory has no streaming reader yet.

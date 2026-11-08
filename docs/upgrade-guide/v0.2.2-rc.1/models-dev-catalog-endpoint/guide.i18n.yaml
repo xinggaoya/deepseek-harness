@@ -1,0 +1,16 @@
+# Bilingual-pair consistency record for guide.md (docs/i18n/README.md): per heading
+# section, a hash of its English and Chinese blocks outside code blocks and generated regions.
+# After editing either side, bring the other along and re-record with:
+#   pnpm run verify-translation-pairing --write docs/upgrade-guide/v0.2.2-rc.1/models-dev-catalog-endpoint/guide.md
+/:
+  en: edcdf6539618485d
+  zh: 5bbdb5a88657b250
+/the-models-dev-catalog-is-mounted-by-default-and-read-from-the-fork-s-proxy:
+  en: becf2af2a1688fe5
+  zh: 2ce4eefa5dc50af9
+/the-models-dev-catalog-is-mounted-by-default-and-read-from-the-fork-s-proxy/change:
+  en: e658ec52039d2677
+  zh: 1e2a843e60deaa12
+/the-models-dev-catalog-is-mounted-by-default-and-read-from-the-fork-s-proxy/migration:
+  en: 6ddef907d4796365
+  zh: 05a08eb3215eee3c

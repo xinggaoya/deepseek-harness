@@ -1,11 +1,14 @@
 import { afterEach, describe, expect, it, vi } from 'vitest'
-import { fetchModelsDevCatalog } from '../src/client.ts'
+import { DEFAULT_MODELS_DEV_URL, fetchModelsDevCatalog } from '../src/client.ts'
 
 afterEach(() => {
   vi.unstubAllGlobals()
 })
 
 describe('fetchModelsDevCatalog', () => {
+  it('reads the catalog from the fork\'s proxy by default', () => {
+    expect(DEFAULT_MODELS_DEV_URL).toBe('https://models.moncn.cn/api.json')
+  })
   it('reads a catalog document', async () => {
     vi.stubGlobal('fetch', vi.fn(async () => new Response(JSON.stringify({}), { status: 200 })))
     const snapshot = await fetchModelsDevCatalog({

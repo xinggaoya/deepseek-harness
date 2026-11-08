@@ -540,6 +540,12 @@ export async function launchWebScaffold(options: LaunchOptions = {}): Promise<We
     DSH_HOME: harnessHome,
     DSH_AGENTS_HOME: join(workspaceCwd, '.agents-home'),
     DSH_BUNDLED_SKILL_DIR: join(workspaceCwd, '.bundled-skills'),
+    // The models.dev catalog is fetched from a third-party host, so the Models
+    // page would list whatever that document held on the day the goldens were
+    // recorded. The row stays off here: the page then offers the installed
+    // pi-ai catalog, which the recorded expectations describe. The catalog
+    // service itself is covered by the llm-pi-ai composition tests.
+    DSH_MODELS_DEV_CATALOG_DISABLED: '1',
   }
   const originalSkillRootEnvironment = Object.fromEntries(
     Object.keys(skillRootEnvironment).map(key => [key, process.env[key]]),

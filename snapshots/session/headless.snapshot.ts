@@ -970,6 +970,7 @@ async function verifyProviderCwdResume(
     DSH_SNAPSHOT_MODEL: model.model,
     DSH_PERMISSION_MODE: 'read-only',
     DSH_TELEMETRY_DISABLED: '1',
+    DSH_MODELS_DEV_CATALOG_DISABLED: '1',
     NODE_OPTIONS: [process.env.NODE_OPTIONS, '--disable-warning=ExperimentalWarning'].filter(Boolean).join(' '),
   }
   const launch = {
@@ -1450,6 +1451,7 @@ describe('headless recorded-session snapshots', () => {
             } : {}),
             NODE_OPTIONS: [process.env.NODE_OPTIONS, '--disable-warning=ExperimentalWarning'].filter(Boolean).join(' '),
             DSH_TELEMETRY_DISABLED: '1',
+            DSH_MODELS_DEV_CATALOG_DISABLED: '1',
             ...(mcpDemo === undefined ? {} : { DSH_MCP_DEMO_URL: mcpDemo.url }),
           },
           prepare: async (cwd) => {

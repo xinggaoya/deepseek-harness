@@ -14,7 +14,7 @@ export default defineConfig({
   plugins: [tsconfigPaths({ projects: ['./tsconfig.base.json'] }), standardDecoratorPlugin()],
   test: {
     execArgv: vitestExecArgv,
-    setupFiles: ['./scripts/test-proxy-environment.ts'],
+    setupFiles: ['./scripts/test-proxy-environment.ts', './scripts/test-models-dev-catalog-guard.ts'],
     // Clears recorded timings before the run and renders benchmarks/.dsh-report/report.html after it.
     globalSetup: ['./benchmarks/support/scaling-report.ts'],
     include: [

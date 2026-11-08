@@ -55,6 +55,29 @@ describe('dsh-base bundle', () => {
     expect(manifest.dependencies).toHaveProperty('@deepseek-ai/dsh-web-search-deepseek')
   })
 
+  it('mounts the models.dev catalog row behind its opt-out switch', () => {
+    const root = fileURLToPath(new URL('..', import.meta.url))
+    const parsed = yaml.load(
+      readFileSync(resolve(root, 'cordis.patch.yml'), 'utf8'),
+      { schema: entryListSchema },
+    )
+    if (!Array.isArray(parsed)) throw new TypeError('base patch must parse to a patch list')
+    const rows = parsed.flatMap((patch): Record<string, unknown>[] =>
+      typeof patch === 'object' && patch !== null
+        ? (patch as { insert?: Record<string, unknown>[] }).insert ?? []
+        : [],
+    )
+    const row = rows.find(candidate => candidate.id === 'llm-models-dev')
+    if (row === undefined) throw new Error('base patch must mount llm-models-dev')
+    expect(row.name).toBe('@deepseek-ai/dsh-llm-models-dev')
+    // The catalog reaches a third-party host, so the row reads a switch: a run
+    // that must not depend on it keeps the row unmounted.
+    const expression = (row.disabled as { __jsExpr?: string } | undefined)?.__jsExpr
+    if (expression === undefined) throw new Error('llm-models-dev must gate on a !!js disabled expression')
+    expect(Boolean(evaluate({ process: { env: {} } }, expression))).toBe(false)
+    expect(Boolean(evaluate({ process: { env: { DSH_MODELS_DEV_CATALOG_DISABLED: '1' } } }, expression))).toBe(true)
+  })
+
   it('gates each shell stack by platform with a symmetric disabled expression', () => {
     const root = fileURLToPath(new URL('..', import.meta.url))
     const parsed = yaml.load(

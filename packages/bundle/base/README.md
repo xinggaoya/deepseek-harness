@@ -51,6 +51,8 @@ Out of the box, every profile built on this core provides: a DeepSeek model conn
 
 Both `subagent` and `subagent_fork` create managed children and return the child's name immediately. Use `send_message` to steer active children or continue their conversations after completion. [Delegation-tool behavior](../../subagent/tool-subagent/README.md) describes result delivery and backend capabilities.
 
+The [models.dev model catalog](../../llm/llm-models-dev/README.md) is mounted too: a provider route named after a provider id the catalog records takes its models from it, so a route's model list follows new provider releases without a hand-written profile. The document is read from the fork's proxy at `models.moncn.cn` and kept in the harness home's cache, so a start serves the providers it already had. `DSH_MODELS_DEV_CATALOG_DISABLED` keeps that row unmounted, for a deployment that must not reach that host.
+
 The bundle also mounts [Agent Teams](../../team/agent-team/README.md) and its task tools. Team mode defaults off per root Session; the root conversation’s **Use Agent Teams** menu switch enables collaboration for that tree without changing the profile.
 
 The built-in `working_directory` tool changes the directory for subsequent operations while existing processes and write permissions remain independent. Current directory information appears in user context. Default file editing uses `read`, `write`, and `edit`. The `str_replace_editor` tool remains available as an explicit opt-in. To add it to a base-backed profile, put this entry in the profile, home, or invocation patch:

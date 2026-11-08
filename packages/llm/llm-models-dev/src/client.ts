@@ -28,8 +28,15 @@ const { version } = createRequire(import.meta.url)('../package.json') as { versi
  */
 export const USER_AGENT = `deepseek-harness-models-dev/${version} (+https://github.com/deepseek-ai/deepseek-harness)`
 
-/** The endpoint models.dev serves its catalog from. */
-export const DEFAULT_MODELS_DEV_URL = 'https://models.dev/api.json'
+/**
+ * The endpoint the catalog is fetched from.
+ *
+ * The document is models.dev's own; this fork serves it from its own proxy,
+ * because models.dev is unreachable from the deployments the fork targets. A
+ * deployment that can reach models.dev directly names its own endpoint in the
+ * plugin's `url` configuration.
+ */
+export const DEFAULT_MODELS_DEV_URL = 'https://models.moncn.cn/api.json'
 
 /** How the client reaches the catalog. */
 export interface ModelsDevClientOptions {

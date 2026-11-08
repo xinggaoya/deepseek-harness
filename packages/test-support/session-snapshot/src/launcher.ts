@@ -131,6 +131,9 @@ export function launchAcpTestAgent(options: AcpTestLaunchOptions): LaunchedAcpTe
       ...options.env,
       DSH_HOME: join(cwd, '.dsh'),
       DSH_AGENTS_HOME: join(cwd, '.agents'),
+      // The models.dev catalog reaches a third-party host; a recorded run
+      // must not depend on what that document holds today.
+      DSH_MODELS_DEV_CATALOG_DISABLED: '1',
     },
   })
   const child = spawn(

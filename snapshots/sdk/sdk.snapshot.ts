@@ -819,6 +819,7 @@ async function runScenario(scenario: CorpusScenario): Promise<{
     DSH_SNAPSHOT_PROVIDER: route.provider,
     DSH_SNAPSHOT_MODEL: route.model,
     DSH_TELEMETRY_DISABLED: '1',
+    DSH_MODELS_DEV_CATALOG_DISABLED: '1',
     DSH_AGENTS_HOME: join(cwd, '.agents'),
     NODE_OPTIONS: [process.env.NODE_OPTIONS, '--disable-warning=ExperimentalWarning'].filter(Boolean).join(' '),
     ...parentFixture === undefined ? {} : {

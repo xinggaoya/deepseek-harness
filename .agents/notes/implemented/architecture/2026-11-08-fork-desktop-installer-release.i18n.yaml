@@ -1,22 +1,22 @@
-# Bilingual-pair consistency record for 2026-11-08-fork-windows-installer-release.md (docs/i18n/README.md): per heading
+# Bilingual-pair consistency record for 2026-11-08-fork-desktop-installer-release.md (docs/i18n/README.md): per heading
 # section, a hash of its English and Chinese blocks outside code blocks and generated regions.
 # After editing either side, bring the other along and re-record with:
-#   pnpm run verify-translation-pairing --write .agents/notes/implemented/architecture/2026-11-08-fork-windows-installer-release.md
-/agent-note-fork-owned-windows-installer-releases:
-  en: 7170c995352753d0
-  zh: 9f38afccee5ef946
-/agent-note-fork-owned-windows-installer-releases/problem:
+#   pnpm run verify-translation-pairing --write .agents/notes/implemented/architecture/2026-11-08-fork-desktop-installer-release.md
+/agent-note-fork-owned-desktop-installer-releases:
+  en: 93a826d80e8f2f74
+  zh: 1cd72ff806787afe
+/agent-note-fork-owned-desktop-installer-releases/problem:
   en: ee766506c466d548
   zh: f58ea532be220688
-/agent-note-fork-owned-windows-installer-releases/decision:
-  en: 168b60d1491005b5
-  zh: 24318d97dadd590c
-/agent-note-fork-owned-windows-installer-releases/verification:
-  en: 3e6faf29585f0ac2
-  zh: 30148a76353f38f8
-/agent-note-fork-owned-windows-installer-releases/alternatives-considered:
-  en: c6d0c73049b10193
-  zh: 90792c56fdafb142
-/agent-note-fork-owned-windows-installer-releases/consequences:
-  en: d4d43c25385a46b2
-  zh: 83a11402cc2402a8
+/agent-note-fork-owned-desktop-installer-releases/decision:
+  en: a62e58e6e2d67bc2
+  zh: 90dc6dc2ec6c54da
+/agent-note-fork-owned-desktop-installer-releases/verification:
+  en: 76c2302199620b2f
+  zh: 50778a1655b53ff3
+/agent-note-fork-owned-desktop-installer-releases/alternatives-considered:
+  en: e3bd4c283d8e6843
+  zh: 8f6a831625875feb
+/agent-note-fork-owned-desktop-installer-releases/consequences:
+  en: 4f78eac922a5cfa2
+  zh: ef08f11991cc8b88

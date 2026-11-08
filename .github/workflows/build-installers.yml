@@ -47,18 +47,21 @@ jobs:
             cache: 'C:/dsh-fork-cache'
             package: package:desktop:win:x64:unsigned
             preset: windows
+            artifact: '*.unsigned.exe*'
           - target: mac-arm64
             runner: macos-latest
             shell: bash
             cache: '/Users/runner/.dsh-fork-cache'
             package: package:desktop:mac:arm64:unsigned
             preset: none
+            artifact: '*.unsigned.dmg'
           - target: mac-x64
             runner: macos-15-intel
             shell: bash
             cache: '/Users/runner/.dsh-fork-cache'
             package: package:desktop:mac:x64:unsigned
             preset: none
+            artifact: '*.unsigned.dmg'
     runs-on: ${{ matrix.runner }}
     timeout-minutes: 120
     defaults:
@@ -178,13 +181,11 @@ jobs:
         uses: actions/upload-artifact@v7.0.1
         with:
           name: installer-${{ matrix.target }}
-          # One glob per line: the action's own glob does not accept the
-          # brace alternation, and the unsigned suffix keeps the NSIS
-          # uninstaller stub out of the release.
-          path: |
-            apps/desktop/.desktop-build/targets/${{ matrix.target }}/unsigned-artifacts/*.unsigned.exe
-            apps/desktop/.desktop-build/targets/${{ matrix.target }}/unsigned-artifacts/*.unsigned.dmg
-            apps/desktop/.desktop-build/targets/${{ matrix.target }}/unsigned-artifacts/*.blockmap
+          # One glob per platform: the action matches neither the brace
+          # alternation nor a list of patterns. The Windows glob takes the
+          # installer and its block map and leaves the NSIS uninstaller stub
+          # out.
+          path: apps/desktop/.desktop-build/targets/${{ matrix.target }}/unsigned-artifacts/${{ matrix.artifact }}
           if-no-files-found: error
           retention-days: 14
 
@@ -216,7 +217,7 @@ jobs:
           RELEASE_TAG: ${{ needs.build.outputs.release_tag }}
           RELEASE_VERSION: ${{ needs.build.outputs.version }}
         run: |
-          mapfile -t assets < <(find installers -type f \( -name '*.exe' -o -name '*.dmg' -o -name '*.blockmap' \) | sort)
+          mapfile -t assets < <(find installers -type f \( -name '*.exe' -o -name '*.dmg' -o -name '*.blockmap' \) ! -name '*__uninstaller*' | sort)
           if [ ${#assets[@]} -eq 0 ]; then
             echo "No installer assets were produced" >&2
             exit 1

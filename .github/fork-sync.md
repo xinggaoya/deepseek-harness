@@ -55,9 +55,9 @@ git fetch upstream     # bring the upstream's refs into the local repo
 
 7. Merge the pull request after the gates are green, and delete the branch.
 
-## Building the Windows installer
+## Building the desktop installers
 
-The fork publishes its own unsigned Windows x64 installer from a version tag. The upstream publication workflows are not part of this fork, so nothing is signed and nothing reaches a publication service.
+The fork publishes its own unsigned desktop installers from a version tag. The upstream publication workflows are not part of this fork, so nothing is signed, nothing is notarized, and nothing reaches a publication service.
 
 1. Merge the upstream as described above, and let the gates pass.
 
@@ -70,9 +70,9 @@ The fork publishes its own unsigned Windows x64 installer from a version tag. Th
    git push origin v0.2.2-rc.1.20261108.1
    ```
 
-4. The [Build Windows installer workflow](workflows/build-windows-installer.yml) runs on the hosted `windows-2025` runner and publishes a GitHub Release carrying `deepseek-harness-<version>-win-x64-unsigned.exe` and its block map.
+4. The [Build installers workflow](workflows/build-installers.yml) builds the three desktop targets the repository supports — Windows x64, macOS arm64, and macOS x64 — on the hosted `windows-2025`, `macos-latest`, and `macos-15-intel` runners, and publishes one GitHub Release carrying `deepseek-harness-<version>-win-x64-unsigned.exe`, `deepseek-harness-<version>-mac-arm64-unsigned.dmg`, `deepseek-harness-<version>-mac-x64-unsigned.dmg`, and their block maps.
 
-The runner image carries the Visual Studio C++ tools, the Windows SDK, VSWhere, Python, and 7zip that the packaging preflight probes for, so no signing hardware and no self-hosted runner are involved. The installer carries no signature, so Windows shows an unknown-publisher warning on first launch.
+The runner images carry the Visual Studio C++ tools, the Windows SDK, VSWhere, Python, and 7zip that the packaging preflight probes for, so no signing hardware and no self-hosted runner are involved. The installers carry no signature and no notarization, so the operating system shows an unknown-publisher warning on first launch. The repository has no Linux desktop target, so the workflow builds none.
 
 ## Conflict hot spots
 

@@ -55,9 +55,9 @@ git fetch upstream     # 把上游的引用拉进本地仓库
 
 7. 门禁全绿后合并该拉取请求，并删除分支。
 
-## 构建 Windows 安装包
+## 构建桌面安装包
 
-本 fork 从版本 tag 发布自己的未签名 Windows x64 安装包。上游的发布工作流不属于本 fork，因此没有签名，也不触及任何发布服务。
+本 fork 从版本 tag 发布自己的未签名桌面安装包。上游的发布工作流不属于本 fork，因此没有签名、没有公证，也不触及任何发布服务。
 
 1. 按上文合并上游，并让门禁通过。
 
@@ -70,9 +70,9 @@ git fetch upstream     # 把上游的引用拉进本地仓库
    git push origin v0.2.2-rc.1.20261108.1
    ```
 
-4. [构建 Windows 安装包工作流](workflows/build-windows-installer.yml)在托管的 `windows-2025` runner 上运行，发布一个 GitHub Release，其中带有 `deepseek-harness-<version>-win-x64-unsigned.exe` 及其 block map。
+4. [构建安装包工作流](workflows/build-installers.yml)在托管的 `windows-2025`、`macos-latest` 与 `macos-15-intel` runner 上构建仓库支持的三个桌面目标——Windows x64、macOS arm64 与 macOS x64——并发布一个 GitHub Release，其中带有 `deepseek-harness-<version>-win-x64-unsigned.exe`、`deepseek-harness-<version>-mac-arm64-unsigned.dmg`、`deepseek-harness-<version>-mac-x64-unsigned.dmg` 及其 block map。
 
-runner 镜像自带打包预检所探测的 Visual Studio C++ 工具、Windows SDK、VSWhere、Python 与 7zip，因此不涉及签名硬件，也不涉及自建 runner。安装包没有签名，Windows 首次启动时会显示未知发布者警告。
+runner 镜像自带打包预检所探测的 Visual Studio C++ 工具、Windows SDK、VSWhere、Python 与 7zip，因此不涉及签名硬件，也不涉及自建 runner。安装包没有签名也没有公证，操作系统首次启动时会显示未知发布者警告。仓库没有 Linux 桌面目标，因此该工作流不构建 Linux 产物。
 
 ## 冲突高发点
 

@@ -1,0 +1,232 @@
+# Build unsigned desktop installers for every supported platform and publish
+# them as one GitHub Release.
+#
+# The upstream publication workflows are not part of this fork: they need the
+# dedicated self-hosted packaging runner, the SafeNet EV token, the machine
+# presets, and the publication credentials. This workflow builds the Windows
+# x64, macOS arm64, and macOS x64 installers on GitHub-hosted runners, from a
+# version tag, without signing or notarization.
+#
+# The hosted windows-2025 image carries Visual Studio Enterprise 2022 with the
+# C++ tools, the Windows SDK, VSWhere, Python, 7zip, and Node, which satisfies
+# the repository's own desktop-toolchain-preflight.ts probe. The hosted macOS
+# images satisfy the same probe, which only checks tar there.
+name: Build installers
+
+on:
+  push:
+    tags:
+      - 'v*'
+  workflow_dispatch:
+    inputs:
+      tag:
+        description: '要构建的版本 tag，带 v 前缀；留空则使用本次运行的 ref'
+        type: string
+        default: ''
+
+permissions:
+  contents: write
+
+concurrency:
+  # One installer set per tag. A rerun of the same tag waits for the first run
+  # instead of producing a second installer set for the same version.
+  group: installers-${{ github.ref }}
+  cancel-in-progress: false
+
+jobs:
+  build:
+    name: ${{ matrix.target }}
+    strategy:
+      # One platform failing must not hide the installers of the others.
+      fail-fast: false
+      matrix:
+        include:
+          - target: win-x64
+            runner: windows-2025
+            shell: pwsh
+            package: package:desktop:win:x64:unsigned
+            preset: windows
+          - target: mac-arm64
+            runner: macos-latest
+            shell: bash
+            package: package:desktop:mac:arm64:unsigned
+            preset: none
+          - target: mac-x64
+            runner: macos-15-intel
+            shell: bash
+            package: package:desktop:mac:x64:unsigned
+            preset: none
+    runs-on: ${{ matrix.runner }}
+    timeout-minutes: 120
+    defaults:
+      run:
+        shell: ${{ matrix.shell }}
+    env:
+      PRIMARY_NODE_VERSION: '24'
+      DSH_TELEMETRY_DISABLED: '1'
+      # The unsigned mode needs no certificate, no notarization, and no
+      # publication credential.
+      PACKAGE_SIGNING: unsigned
+      DSH_PACKAGING_PRESET: test
+      # The tag names the release, so the version is the tag's own suffix.
+      PACKAGE_VERSION_MODE: manual
+      DSH_DESKTOP_UPDATE_CHANNEL: nightly
+      DSH_FORK_CACHE: ${{ runner.os == 'Windows' && 'C:/dsh-fork-cache' || format('{0}/.dsh-fork-cache', runner.home) }}
+    outputs:
+      version: ${{ steps.tag.outputs.version }}
+      release_tag: ${{ steps.tag.outputs.release_tag }}
+    steps:
+      - name: Check out the sources
+        uses: actions/checkout@v7.0.1
+        with:
+          persist-credentials: false
+
+      - name: Set up pnpm
+        uses: pnpm/action-setup@v5.0.0
+        with:
+          dest: ${{ runner.temp }}/setup-pnpm-${{ github.run_id }}-${{ github.run_attempt }}-${{ github.job }}
+
+      - name: Set up Node.js
+        uses: actions/setup-node@v7.0.0
+        with:
+          node-version: ${{ env.PRIMARY_NODE_VERSION }}
+
+      - name: Configure the build caches
+        shell: bash
+        run: |
+          mkdir -p "$DSH_FORK_CACHE"
+          echo "DSH_DESKTOP_PACKAGE_CACHE_DIR=$DSH_FORK_CACHE/package" >> "$GITHUB_ENV"
+          echo "ELECTRON_BUILDER_CACHE=$DSH_FORK_CACHE/electron-builder" >> "$GITHUB_ENV"
+          echo "DSH_PACKAGING_CONFIG_DIR=$DSH_FORK_CACHE/packaging-config" >> "$GITHUB_ENV"
+          pnpm config set store-dir "$DSH_FORK_CACHE/pnpm"
+
+      - name: Write the unsigned Windows packaging preset
+        # Only the Windows target reads a machine preset. The macOS targets use
+        # the unsigned local defaults, which read no preset file at all.
+        if: matrix.preset == 'windows'
+        shell: pwsh
+        run: |
+          $presetDirectory = Join-Path $env:DSH_PACKAGING_CONFIG_DIR 'presets'
+          New-Item -ItemType Directory -Force -Path $presetDirectory | Out-Null
+          # The mandatory-update origin and the download origin resolve to a
+          # reserved non-resolving host: the packaged application records the
+          # policy query as unavailable and never blocks on it.
+          @'
+          DSH_DESKTOP_APP_ID=com.deepseek.harness
+          DSH_DESKTOP_AUTO_UPDATE_ENV=test
+          DSH_DESKTOP_MANDATORY_UPDATE_TEST_ORIGIN=https://updates.dsh.invalid
+          DSH_DESKTOP_MANDATORY_UPDATE_CONFIG='{"allowedAuthOrigins":["https://login.dsh.invalid"]}'
+          DOWNLOAD_TEST_ORIGIN=https://updates.dsh.invalid
+          DOWNLOAD_TEST_RELEASE_ID=6f1c9d4b8a2e7f35c0b19d6e8a47f253
+          DSH_DESKTOP_WINDOWS_COMPRESSION_LEVEL=3
+          '@ | Set-Content -Path (Join-Path $presetDirectory 'test.env') -Encoding utf8
+
+      - name: Restore the pnpm store
+        uses: actions/cache@v6.1.0
+        with:
+          path: ${{ env.DSH_FORK_CACHE }}/pnpm
+          key: pnpm-${{ runner.os }}-${{ hashFiles('pnpm-lock.yaml') }}
+          restore-keys: pnpm-${{ runner.os }}-
+
+      - name: Restore the packaging caches
+        uses: actions/cache@v6.1.0
+        with:
+          path: |
+            ${{ env.DSH_FORK_CACHE }}/package
+            ${{ env.DSH_FORK_CACHE }}/electron-builder
+          key: desktop-package-${{ runner.os }}-${{ hashFiles('scripts/primary-runtime/lock.json') }}
+          restore-keys: desktop-package-${{ runner.os }}-
+
+      - name: Install the locked dependencies
+        run: pnpm install --frozen-lockfile
+
+      - name: Resolve the version tag
+        id: tag
+        shell: bash
+        env:
+          REQUESTED_TAG: ${{ inputs.tag }}
+          TRIGGER_TAG: ${{ github.ref_name }}
+        run: |
+          tag="${REQUESTED_TAG:-$TRIGGER_TAG}"
+          if [[ ! "$tag" =~ ^v[0-9]+\.[0-9]+\.[0-9]+ ]]; then
+            echo "The version tag must start with v and a three-part version, got '$tag'" >&2
+            exit 1
+          fi
+          echo "version=${tag#v}" >> "$GITHUB_OUTPUT"
+          echo "release_tag=$tag" >> "$GITHUB_OUTPUT"
+
+      - name: Check the packaging configuration and toolchain
+        # The Windows preset carries release settings, so the Windows job
+        # resolves them before the build. The macOS targets read no preset.
+        if: matrix.preset == 'windows'
+        id: settings
+        env:
+          PACKAGE_BUILD_VERSION: ${{ steps.tag.outputs.version }}
+          PACKAGE_SOURCE_REF: ${{ steps.tag.outputs.release_tag }}
+        run: node apps/desktop/scripts/prepare-windows-ci.mjs
+
+      - name: Check the packaging entry point
+        run: pnpm run ${{ matrix.package }} -- --check --build-version ${{ steps.tag.outputs.version }}
+
+      - name: Build the installer
+        run: pnpm run ${{ matrix.package }} -- --build-version ${{ steps.tag.outputs.version }}
+
+      - name: Upload the installer
+        uses: actions/upload-artifact@v7.0.1
+        with:
+          name: installer-${{ matrix.target }}
+          path: apps/desktop/.desktop-build/targets/${{ matrix.target }}/unsigned-artifacts/*.{exe,dmg,blockmap}
+          if-no-files-found: error
+          retention-days: 14
+
+      - name: Retain the packaging diagnostics
+        if: always()
+        uses: actions/upload-artifact@v7.0.1
+        with:
+          name: packaging-logs-${{ matrix.target }}
+          include-hidden-files: true
+          path: ${{ github.workspace }}/apps/desktop/.desktop-build/packaging-runs/
+          if-no-files-found: warn
+          retention-days: 14
+
+  publish:
+    name: Publish the release
+    needs: build
+    runs-on: ubuntu-latest
+    timeout-minutes: 30
+    steps:
+      - name: Download the installers
+        uses: actions/download-artifact@v7.0.1
+        with:
+          pattern: installer-*
+          path: installers
+
+      - name: Publish the GitHub Release
+        env:
+          GH_TOKEN: ${{ github.token }}
+          RELEASE_TAG: ${{ needs.build.outputs.release_tag }}
+          RELEASE_VERSION: ${{ needs.build.outputs.version }}
+        run: |
+          mapfile -t assets < <(find installers -type f \( -name '*.exe' -o -name '*.dmg' -o -name '*.blockmap' \) | sort)
+          if [ ${#assets[@]} -eq 0 ]; then
+            echo "No installer assets were produced" >&2
+            exit 1
+          fi
+          title="DeepSeek Harness ${RELEASE_VERSION}"
+          notes="Unsigned installers for Windows x64, macOS arm64, and macOS x64, built from commit ${GITHUB_SHA}."
+          notes="${notes} The installers carry no signature and no notarization, so the operating system shows an unknown-publisher warning on first launch."
+          # gh release create has no --clobber flag; an existing release takes the upload path.
+          if gh release view "$RELEASE_TAG" --repo "$GITHUB_REPOSITORY" > /dev/null 2>&1; then
+            gh release upload "$RELEASE_TAG" "${assets[@]}" --clobber --repo "$GITHUB_REPOSITORY"
+            gh release edit "$RELEASE_TAG" --title "$title" --notes "$notes" --repo "$GITHUB_REPOSITORY"
+          else
+            gh release create "$RELEASE_TAG" "${assets[@]}" --title "$title" --notes "$notes" --repo "$GITHUB_REPOSITORY"
+          fi
+
+      - name: Report the published assets
+        env:
+          GH_TOKEN: ${{ github.token }}
+          RELEASE_TAG: ${{ needs.build.outputs.release_tag }}
+        run: |
+          gh release view "$RELEASE_TAG" --repo "$GITHUB_REPOSITORY" --json url,assets \
+            --jq '"Release: \(.url)\n" + (.assets | map("  \(.name)  \(.size) bytes") | join("\n"))'

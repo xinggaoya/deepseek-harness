@@ -44,16 +44,19 @@ jobs:
           - target: win-x64
             runner: windows-2025
             shell: pwsh
+            cache: 'C:/dsh-fork-cache'
             package: package:desktop:win:x64:unsigned
             preset: windows
           - target: mac-arm64
             runner: macos-latest
             shell: bash
+            cache: '/Users/runner/.dsh-fork-cache'
             package: package:desktop:mac:arm64:unsigned
             preset: none
           - target: mac-x64
             runner: macos-15-intel
             shell: bash
+            cache: '/Users/runner/.dsh-fork-cache'
             package: package:desktop:mac:x64:unsigned
             preset: none
     runs-on: ${{ matrix.runner }}
@@ -71,7 +74,7 @@ jobs:
       # The tag names the release, so the version is the tag's own suffix.
       PACKAGE_VERSION_MODE: manual
       DSH_DESKTOP_UPDATE_CHANNEL: nightly
-      DSH_FORK_CACHE: ${{ runner.os == 'Windows' && 'C:/dsh-fork-cache' || format('{0}/.dsh-fork-cache', runner.home) }}
+      DSH_FORK_CACHE: ${{ matrix.cache }}
     outputs:
       version: ${{ steps.tag.outputs.version }}
       release_tag: ${{ steps.tag.outputs.release_tag }}

@@ -47,21 +47,21 @@ jobs:
             cache: 'C:/dsh-fork-cache'
             package: package:desktop:win:x64:unsigned
             preset: windows
-            artifact: '*.unsigned.exe*'
+            artifact: '*-unsigned.exe*'
           - target: mac-arm64
             runner: macos-latest
             shell: bash
             cache: '/Users/runner/.dsh-fork-cache'
             package: package:desktop:mac:arm64:unsigned
             preset: none
-            artifact: '*.unsigned.dmg'
+            artifact: '*-unsigned.dmg'
           - target: mac-x64
             runner: macos-15-intel
             shell: bash
             cache: '/Users/runner/.dsh-fork-cache'
             package: package:desktop:mac:x64:unsigned
             preset: none
-            artifact: '*.unsigned.dmg'
+            artifact: '*-unsigned.dmg'
     runs-on: ${{ matrix.runner }}
     timeout-minutes: 120
     defaults:
@@ -184,7 +184,8 @@ jobs:
           # One glob per platform: the action matches neither the brace
           # alternation nor a list of patterns. The Windows glob takes the
           # installer and its block map and leaves the NSIS uninstaller stub
-          # out.
+          # out, because the artifact name carries the unsigned marker as a
+          # hyphen and not as a dot.
           path: apps/desktop/.desktop-build/targets/${{ matrix.target }}/unsigned-artifacts/${{ matrix.artifact }}
           if-no-files-found: error
           retention-days: 14
@@ -222,6 +223,12 @@ jobs:
             echo "No installer assets were produced" >&2
             exit 1
           fi
+          for extension in exe dmg; do
+            if ! printf '%s\n' "${assets[@]}" | grep -q "\.$extension$"; then
+              echo "No .$extension installer was produced" >&2
+              exit 1
+            fi
+          done
           title="DeepSeek Harness ${RELEASE_VERSION}"
           notes="Unsigned installers for Windows x64, macOS arm64, and macOS x64, built from commit ${GITHUB_SHA}."
           notes="${notes} The installers carry no signature and no notarization, so the operating system shows an unknown-publisher warning on first launch."

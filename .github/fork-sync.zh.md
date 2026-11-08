@@ -55,6 +55,25 @@ git fetch upstream     # 把上游的引用拉进本地仓库
 
 7. 门禁全绿后合并该拉取请求，并删除分支。
 
+## 构建 Windows 安装包
+
+本 fork 从版本 tag 发布自己的未签名 Windows x64 安装包。上游的发布工作流不属于本 fork，因此没有签名，也不触及任何发布服务。
+
+1. 按上文合并上游，并让门禁通过。
+
+2. 选定版本。tag 即发布名称，其后缀就是构建版本，所以 tag 必须扩展根 `package.json` 里的产品版本。产品版本为 `0.2.2-rc.1` 时，tag `v0.2.2-rc.1.20261108.1` 构建出该版本。
+
+3. 推送 tag：
+
+   ```bash
+   git tag v0.2.2-rc.1.20261108.1
+   git push origin v0.2.2-rc.1.20261108.1
+   ```
+
+4. [构建 Windows 安装包工作流](workflows/build-windows-installer.yml)在托管的 `windows-2025` runner 上运行，发布一个 GitHub Release，其中带有 `deepseek-harness-<version>-win-x64-unsigned.exe` 及其 block map。
+
+runner 镜像自带打包预检所探测的 Visual Studio C++ 工具、Windows SDK、VSWhere、Python 与 7zip，因此不涉及签名硬件，也不涉及自建 runner。安装包没有签名，Windows 首次启动时会显示未知发布者警告。
+
 ## 冲突高发点
 
 下面这些路径几乎每次合并上游都会变动。请重新生成，而不是手工解决：
@@ -89,6 +108,7 @@ pnpm run verify-translation-pairing --write <改动的文档>
 - **随附预设不再携带 persona 行**——`standard`、`cordis`、`ptc` 继承部署人设，`minimal` 保留自己的。上游若改动这些预设文件，需要同样处理。
 - **MCP 服务器命名空间**——`packages/mcp/mcp-servers` 拥有 `mcp-servers` 设置命名空间，并让运行中的 `mcp-client` 实例与之对齐。
 - **技能目录支持按预设查询**——`skills.list` 既接受会话 id，也接受预设 id。
+- **默认挂载 models.dev 模型目录**——`packages/bundle/base/cordis.patch.yml` 挂载 `@deepseek-ai/dsh-llm-models-dev`，因此以 models.dev 提供方 id 命名的路由从该目录取用模型。该插件的默认端点是本 fork 的代理（`https://models.moncn.cn/api.json`）；上游合并若触及这两处，都要保留。
 
 ## 门禁阶梯
 

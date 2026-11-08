@@ -55,6 +55,25 @@ git fetch upstream     # bring the upstream's refs into the local repo
 
 7. Merge the pull request after the gates are green, and delete the branch.
 
+## Building the Windows installer
+
+The fork publishes its own unsigned Windows x64 installer from a version tag. The upstream publication workflows are not part of this fork, so nothing is signed and nothing reaches a publication service.
+
+1. Merge the upstream as described above, and let the gates pass.
+
+2. Choose a version. The tag names the release, and its suffix is the build version, so the tag must extend the product version in the root `package.json`. For product version `0.2.2-rc.1`, the tag `v0.2.2-rc.1.20261108.1` builds that version.
+
+3. Push the tag:
+
+   ```bash
+   git tag v0.2.2-rc.1.20261108.1
+   git push origin v0.2.2-rc.1.20261108.1
+   ```
+
+4. The [Build Windows installer workflow](workflows/build-windows-installer.yml) runs on the hosted `windows-2025` runner and publishes a GitHub Release carrying `deepseek-harness-<version>-win-x64-unsigned.exe` and its block map.
+
+The runner image carries the Visual Studio C++ tools, the Windows SDK, VSWhere, Python, and 7zip that the packaging preflight probes for, so no signing hardware and no self-hosted runner are involved. The installer carries no signature, so Windows shows an unknown-publisher warning on first launch.
+
 ## Conflict hot spots
 
 These paths change on nearly every upstream merge. Regenerate them instead of resolving them by hand:
@@ -89,6 +108,7 @@ Re-check these after every sync; they are the parts an upstream merge can silent
 - **The shipped presets no longer carry a persona row** — `standard`, `cordis`, and `ptc` inherit the deployment persona; `minimal` keeps its own. An upstream change to those preset files needs the same treatment.
 - **The MCP servers namespace** — `packages/mcp/mcp-servers` owns the `mcp-servers` settings namespace and reconciles the running `mcp-client` instances with it.
 - **The skills catalog answers a preset query** — `skills.list` accepts a preset id as well as a session id.
+- **The models.dev catalog is mounted by default** — `packages/bundle/base/cordis.patch.yml` mounts `@deepseek-ai/dsh-llm-models-dev`, so a provider route named after a models.dev provider id takes its models from that catalog. The plugin's default endpoint is the fork's proxy (`https://models.moncn.cn/api.json`); keep both the row and that default when an upstream merge touches them.
 
 ## Gate ladder
 

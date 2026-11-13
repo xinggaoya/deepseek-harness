@@ -22,8 +22,6 @@ import { readCatalogCache, writeCatalogCache } from './cache.ts'
 import { DEFAULT_MODELS_DEV_URL, fetchModelsDevCatalog } from './client.ts'
 import type { ModelsDevProviderFacts, ModelsDevSnapshot } from './types.ts'
 
-export { DEFAULT_MODELS_DEV_URL } from './client.ts'
-export { parseModelsDevCatalog } from './parse.ts'
 export type {
   ModelsDevEffortValue,
   ModelsDevModelFacts,
@@ -41,13 +39,13 @@ declare module '@deepseek-ai/cordis' {
 }
 
 /** How often the catalog is refetched, in milliseconds. */
-export const DEFAULT_REFRESH_INTERVAL_MS = 6 * 60 * 60 * 1000
+const DEFAULT_REFRESH_INTERVAL_MS = 6 * 60 * 60 * 1000
 
 /** How long one catalog request may take, in milliseconds. */
-export const DEFAULT_TIMEOUT_MS = 30_000
+const DEFAULT_TIMEOUT_MS = 30_000
 
 /** The largest catalog reply accepted, in bytes. */
-export const DEFAULT_MAX_BYTES = 16 * 1024 * 1024
+const DEFAULT_MAX_BYTES = 16 * 1024 * 1024
 
 /**
  * How long a failed attempt waits before the next one, in milliseconds.
@@ -56,10 +54,10 @@ export const DEFAULT_MAX_BYTES = 16 * 1024 * 1024
  * as a missing provider. A failed attempt is therefore retried long before the
  * next scheduled refresh.
  */
-export const DEFAULT_RETRY_INTERVAL_MS = 30_000
+const DEFAULT_RETRY_INTERVAL_MS = 30_000
 
 /** The cache file the fetched catalog is kept in, under the harness home's cache directory. */
-export const DEFAULT_CACHE_FILENAME = 'models-dev.json'
+const DEFAULT_CACHE_FILENAME = 'models-dev.json'
 
 /** Configuration for the catalog service. */
 export interface Config {
@@ -92,7 +90,7 @@ export interface Config {
 }
 
 /** Schemastery validation for {@link Config}. */
-export const Config: z<Config> = z.object({
+const Config: z<Config> = z.object({
   url: z.string(),
   refreshIntervalMs: z.number(),
   timeoutMs: z.number(),

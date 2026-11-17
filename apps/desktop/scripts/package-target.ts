@@ -522,7 +522,11 @@ export async function packageTarget(
   }
   if (signPrimaryRuntime) await execute(['run', 'sign:primary-runtime'], electronBuilderEnv)
   await execute(['run', 'prepare:packages'], targetEnv)
-  await execute(['run', 'prepare:dsh', ...(signPrimaryRuntime ? ['--defer-runtime-smoke'] : [])], downloadEnv)
+  // DSH_DESKTOP_SKIP_RUNTIME_SMOKE=1 is a local-build escape hatch: a build host whose
+  // Host teardown wedges can still produce installers whose checks already passed. CI never sets it.
+  const skipRuntimeSmoke = process.env.DSH_DESKTOP_SKIP_RUNTIME_SMOKE === '1'
+  await execute(['run', 'prepare:dsh',
+    ...((signPrimaryRuntime || skipRuntimeSmoke) ? ['--defer-runtime-smoke'] : [])], downloadEnv)
   if (signPrimaryRuntime) await execute(['run', 'sign:primary-runtime', '--dsh'], electronBuilderEnv)
   if (invocation.prepareOnly) return
   const buildMacArtifact = (artifact: DesktopPrepackagedArtifact) => execute(
@@ -558,8 +562,10 @@ export async function packageTarget(
     } else {
       await signedStage('artifacts', () => execute(desktopElectronBuilderArguments(target, invocation.directory), electronBuilderEnv))
     }
-    await execute(['exec', 'tsx', 'scripts/smoke-packaged-runtime.ts',
-      ...(invocation.unsigned ? ['--unsigned'] : []), ...(invocation.skipNotarization ? ['--skip-notarization'] : [])], targetEnv)
+    if (!skipRuntimeSmoke) {
+      await execute(['exec', 'tsx', 'scripts/smoke-packaged-runtime.ts',
+        ...(invocation.unsigned ? ['--unsigned'] : []), ...(invocation.skipNotarization ? ['--skip-notarization'] : [])], targetEnv)
+    }
   }
   if (!invocation.directory && !invocation.unsigned && !invocation.skipNotarization) {
     writeReleaseRecord(target, electronBuilderEnv, buildPaths.artifacts)

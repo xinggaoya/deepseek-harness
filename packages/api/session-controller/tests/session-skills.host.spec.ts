@@ -3,11 +3,12 @@ import AgentRegistry from '@deepseek-ai/dsh-agent'
 import SessionProjectionRegistry from '@deepseek-ai/dsh-session-projection'
 import { provideWorkingDirectoryFixture } from '@deepseek-ai/dsh-agent-loop-testkit'
 import type { Agent } from '@deepseek-ai/dsh-agent'
-import SessionStore, { SESSION_FORMAT_VERSION, SessionId, SessionLogOffset } from '@deepseek-ai/dsh-session'
+import SessionStore, { SESSION_FORMAT_VERSION, type SessionId, SessionLogOffset } from '@deepseek-ai/dsh-session'
 import { SessionQueryError, type SessionObservation } from '@deepseek-ai/dsh-session-query'
 import type {} from '@deepseek-ai/dsh-skill'
 import { describe, expect, it, vi } from 'vitest'
 import { SkillCatalog } from '../src/skill-catalog.ts'
+import { brandString } from '@deepseek-ai/dsh-brand'
 
 function observation(
   sessionId: SessionId,
@@ -51,7 +52,7 @@ async function context(): Promise<Context> {
 describe('SkillCatalog', () => {
   it('reads a moved cold Session catalog from its recorded current directory without resuming an Agent', async () => {
     const ctx = await context()
-    const sessionId = SessionId('cold-skills')
+    const sessionId = brandString<SessionId>('cold-skills')
     const observed = observation(sessionId, { cwd: '/cold/original', workingDirectory: '/cold/project' })
     const dispose = vi.spyOn(observed, Symbol.dispose)
     const observeSession = vi.fn(() => Promise.resolve(observed))
@@ -104,7 +105,7 @@ describe('SkillCatalog', () => {
   ])('resolves cold directory metadata $cwd / $workingDirectory to $expected without filesystem checks', async ({ cwd, workingDirectory, expected }) => {
     const ctx = await context()
     try {
-      const sessionId = SessionId('cold-directory-fallback')
+      const sessionId = brandString<SessionId>('cold-directory-fallback')
       ctx.provide('sessionQuery', {
         observeSession: () => Promise.resolve(observation(sessionId, {
           ...cwd === undefined ? {} : { cwd },
@@ -127,7 +128,7 @@ describe('SkillCatalog', () => {
 
   it('uses a live Agent to address a preset-owned registry', async () => {
     const ctx = await context()
-    const sessionId = SessionId('live-skills')
+    const sessionId = brandString<SessionId>('live-skills')
     const session = ctx.sessions.create(sessionId, { meta: { cwd: '/live/project' } })
     const agent = { id: sessionId, session, status: 'idle', ctx } as Agent
     await ctx.agents.register(agent)
@@ -165,7 +166,7 @@ describe('SkillCatalog', () => {
 
   it('uses the recorded preset standing scope for a cold Session', async () => {
     const ctx = await context()
-    const sessionId = SessionId('standing-skills')
+    const sessionId = brandString<SessionId>('standing-skills')
     const scope = { agentPreset: 'minimal' }
     ctx.provide('sessionQuery', {
       observeSession: () => Promise.resolve(observation(sessionId, {
@@ -187,7 +188,7 @@ describe('SkillCatalog', () => {
 
   it('falls back to the global registry when the recorded preset is unavailable', async () => {
     const ctx = await context()
-    const sessionId = SessionId('gone-preset')
+    const sessionId = brandString<SessionId>('gone-preset')
     ctx.provide('sessionQuery', {
       observeSession: () => Promise.resolve(observation(sessionId, {
         cwd: '/cold/project',
@@ -220,14 +221,14 @@ describe('SkillCatalog', () => {
     const catalog = new SkillCatalog(ctx)
 
     await expect(catalog.list(
-      { sessionId: SessionId('missing-skills') },
+      { sessionId: brandString<SessionId>('missing-skills') },
       new AbortController().signal,
     )).rejects.toMatchObject({ code })
   })
 
   it('reports an absent skill registry instead of an empty catalog', async () => {
     const ctx = await context()
-    const sessionId = SessionId('no-skills')
+    const sessionId = brandString<SessionId>('no-skills')
     ctx.provide('sessionQuery', {
       observeSession: () => Promise.resolve(observation(sessionId, { cwd: '/project' })),
     } as never)
@@ -240,7 +241,7 @@ describe('SkillCatalog', () => {
 
   it('rejects observations without projections', async () => {
     const ctx = await context()
-    const sessionId = SessionId('incomplete-skills')
+    const sessionId = brandString<SessionId>('incomplete-skills')
     const withoutProjections = { ...observation(sessionId, { cwd: '/project' }), projections: undefined }
     const observeSession = vi.fn()
       .mockResolvedValueOnce(withoutProjections)
@@ -254,7 +255,7 @@ describe('SkillCatalog', () => {
 
   it('classifies a provider listing failure', async () => {
     const ctx = await context()
-    const sessionId = SessionId('failed-skills')
+    const sessionId = brandString<SessionId>('failed-skills')
     ctx.provide('sessionQuery', {
       observeSession: () => Promise.resolve(observation(sessionId, { cwd: '/project' })),
     } as never)

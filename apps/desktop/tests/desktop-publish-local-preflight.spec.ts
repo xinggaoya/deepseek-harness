@@ -2,7 +2,7 @@ import { mkdtemp, mkdir, rm, writeFile } from 'node:fs/promises'
 import { tmpdir } from 'node:os'
 import { join } from 'node:path'
 import { expect, it } from 'vitest'
-import { preflightDesktopPublishLocal } from '../scripts/preflight-desktop-publish-local.mjs'
+import { preflightDesktopPublishLocal } from '@deepseek-ai/dsh-desktop-publisher/preflight-desktop-publish-local.mjs'
 
 it('checks the retained preset before approval and the approved preset before upload without opening credentials', async () => {
   const root = await mkdtemp(join(tmpdir(), 'publish-preflight-'))

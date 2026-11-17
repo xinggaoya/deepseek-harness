@@ -174,6 +174,9 @@ export class DesktopHostProcess {
   readonly #authentication = new DesktopParentAuthentication()
   private runId: PluginOperationRunId | undefined
   private child: ChildProcess | undefined
+
+  /** The Host's OS process id while the child runs; undefined before start and after teardown. */
+  get pid(): number | undefined { return this.child?.pid }
   private readyResolve!: (ready: DesktopHostReady) => void
   private readyReject!: (error: Error) => void
   private readonly readyPromise = new Promise<DesktopHostReady>((resolve, reject) => {

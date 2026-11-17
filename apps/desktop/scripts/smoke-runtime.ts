@@ -4,7 +4,7 @@ import { appendFileSync, cpSync, existsSync, mkdirSync, mkdtempSync, readFileSyn
 import { rm } from 'node:fs/promises'
 import { tmpdir } from 'node:os'
 import { join } from 'node:path'
-import { execFile } from 'node:child_process'
+import { execFile, execFileSync } from 'node:child_process'
 import { promisify } from 'node:util'
 import { fileURLToPath } from 'node:url'
 import { readPrimaryRuntime, workspaceDependencyPaths } from '../../../packages/skill/tool-workspace-dependencies/src/index.ts'
@@ -258,8 +258,35 @@ export function apply(ctx) {
     console.log('desktop runtime: DOCX, XLSX, PPTX to PDF, image rendering, conversion, and recalculation passed')
   } finally {
     clearTimeout(timer)
-    try { await host.stop() } finally {
+    try {
+      // A Host that never settles its shutdown must not wedge the packaging run: the tree kill
+      // ends what stop() waits for, and the deadline reports the shutdown as forced.
+      await Promise.race([host.stop(), forcedTeardown(host, teardownDeadlineMs)])
+    } finally {
       await rm(home, { recursive: true, force: true, maxRetries: 20, retryDelay: 50 })
     }
   }
+}
+
+/** Teardown bound: past it the Host process tree is killed, because every check has already passed. */
+const teardownDeadlineMs = 60_000
+
+/**
+ * Kill the Host process tree after the deadline and keep the race settled.
+ * @param host - The running Host whose tree is killed when stop() does not settle.
+ * @param milliseconds - Teardown bound before the tree kill.
+ * @returns Resolves once the deadline elapsed; the caller keeps awaiting stop() beside it.
+ */
+function forcedTeardown(host: DesktopHostProcess, milliseconds: number): Promise<void> {
+  return new Promise((resolve) => {
+    setTimeout(() => {
+      const pid = host.pid
+      if (pid === undefined) return resolve()
+      console.error(`desktop runtime: Host teardown exceeded ${String(milliseconds)} milliseconds; killing the process tree`)
+      try { execFileSync('taskkill', ['/PID', String(pid), '/T', '/F'], { stdio: 'ignore' }) } catch {
+        // The tree is already gone; the kill is only the bound's enforcement.
+      }
+      resolve()
+    }, milliseconds)
+  })
 }

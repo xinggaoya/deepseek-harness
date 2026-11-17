@@ -7,6 +7,10 @@ import ComputerUseRegistry from '@deepseek-ai/dsh-computer-use'
 import type { ToolCallId } from '@deepseek-ai/dsh-llm'
 import type { SessionId } from '@deepseek-ai/dsh-session'
 import SubprocessLocal from '@deepseek-ai/dsh-subprocess-local'
+import { copyFile, mkdtemp, rm } from 'node:fs/promises'
+import { tmpdir } from 'node:os'
+import { join } from 'node:path'
+import { pathToFileURL } from 'node:url'
 import { expect, it, onTestFinished } from 'vitest'
 import * as WindowsProvider from '../src/index.ts'
 import { brandString } from '@deepseek-ai/dsh-brand'
@@ -21,7 +25,13 @@ it.skipIf(process.platform !== 'win32')('loads the Windows provider and rejects 
   ctx.baseUrl = import.meta.url
   await ctx.plugin(Loader)
   Object.assign(ctx.loader.builtins, { include: Include, 'windows-provider': WindowsProvider })
-  await ctx.loader.create({ name: 'cordis:include', config: { path: new URL('./fixtures/provider.yml', import.meta.url).href } })
+  // The Include plugin writes the resolved rows back to the file it includes, so the
+  // fixture is copied: including the tracked file would edit the repository.
+  const directory = await mkdtemp(join(tmpdir(), 'dsh-cua-windows-'))
+  onTestFinished(() => rm(directory, { recursive: true, force: true, maxRetries: 5, retryDelay: 100 }))
+  const fixture = join(directory, 'provider.yml')
+  await copyFile(new URL('./fixtures/provider.yml', import.meta.url), fixture)
+  await ctx.loader.create({ name: 'cordis:include', config: { path: pathToFileURL(fixture).href } })
   await ctx.loader.await()
   const entry = [...ctx.loader.entries()].find(entry => entry.options.id === 'windows-provider')
   if (!entry?.fiber) throw new Error('Loader did not activate the Windows provider')

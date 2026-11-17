@@ -34,7 +34,7 @@ async function bench(servers: Record<string, McpServerConfig>) {
   await ctx.plugin(ToolRuntime)
   const fiber = ctx.plugin(McpServers, { servers })
   await fiber.await()
-  const resolved = fiber.config as { servers: Volatile<Record<string, McpServerConfig>> }
+  const resolved = fiber.effectiveConfig as { servers: Volatile<Record<string, McpServerConfig>> }
   const serversRef = resolved.servers
   return {
     ctx,

@@ -101,6 +101,7 @@ const VIEWER_GLOBAL_ROLE: RemoteAccessRole<'global'> = {
   resource: 'global',
   actions: [
     'commands/list',
+    'llm/catalogState',
     'llm/listConfigurableProviders',
     'llm/listProviders',
     'session/canOpenWorkspacePath',

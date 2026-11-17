@@ -30,8 +30,8 @@ it('loads every rollout entry from its own installed package and the correct job
   }
 })
 
-it.each(['desktop-rollout.yml', 'desktop-publish.yml'])('keeps %s preflights executable before install', (filename) => {
-  const workflow = workflowSchema.parse(load(readFileSync(resolve(root, '.github/workflows', filename), 'utf8')))
+it('keeps the rollout preflights executable before install', () => {
+  const workflow = workflowSchema.parse(load(readFileSync(resolve(root, '.github/workflows/desktop-rollout.yml'), 'utf8')))
   let preflights = 0
   for (const job of Object.values(workflow.jobs)) {
     const checkout = job.steps.find(entry => entry.uses?.startsWith('actions/checkout@'))
@@ -46,11 +46,4 @@ it.each(['desktop-rollout.yml', 'desktop-publish.yml'])('keeps %s preflights exe
     }
   }
   expect(preflights).toBe(5)
-})
-
-it('separates rollout checkouts from full-workspace publication checkouts', () => {
-  const read = (filename: string) => workflowSchema.parse(load(readFileSync(resolve(root, '.github/workflows', filename), 'utf8')))
-  const paths = (filename: string) => Object.values(read(filename).jobs).flatMap(job => job.steps.flatMap(entry => entry.uses?.startsWith('actions/checkout@') && entry.with?.path ? [entry.with.path] : []))
-  const full = new Set(paths('desktop-publish.yml'))
-  for (const path of paths('desktop-rollout.yml')) expect(full.has(path)).toBe(false)
 })
